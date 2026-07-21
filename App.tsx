@@ -1,0 +1,936 @@
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import {
+  Home, MessageCircle, BookOpen, User, Moon, Sun, Droplet, Zap, Heart,
+  Sparkles, ChevronRight, ChevronLeft, Check, Search, Bell, Settings, Watch,
+  Crown, Flame, Send, Sunrise, Utensils, Wind, Battery, Activity, ShieldCheck,
+  Clock, Leaf, CircleDot, Info, X, MoonStar, Brain, Coffee, Dumbbell, Plus, FlaskConical,
+} from "lucide-react";
+import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
+
+/* ============================== THEME ============================== */
+const makeTheme = (d) =>
+  d
+    ? { bg: "#0B0C0E", bg2: "#111316", card: "#17191D", card2: "#1E2127",
+        ink: "#F2F2F4", sub: "#9B9CA2", faint: "#63656B", line: "#25282D",
+        sage: "#8FC5AC", sageSoft: "#1B2A24", blue: "#8DB2DE", blueSoft: "#182430",
+        shadow: "0 1px 2px rgba(0,0,0,.5)", shadowLg: "0 10px 30px rgba(0,0,0,.55)" }
+    : { bg: "#F3F4F1", bg2: "#FBFBF9", card: "#FFFFFF", card2: "#F6F7F4",
+        ink: "#1A1B1D", sub: "#797A80", faint: "#AEAFB3", line: "#ECEDEA",
+        sage: "#5F9E82", sageSoft: "#E7F1EB", blue: "#5E8AC0", blueSoft: "#E9F0F8",
+        shadow: "0 1px 2px rgba(20,20,25,.04), 0 2px 8px rgba(20,20,25,.05)",
+        shadowLg: "0 12px 34px rgba(24,28,26,.10)" };
+
+const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif';
+
+/* ============================== HORMONE MODEL ============================== *
+ * The viral hormones — front and centre — but grounded. Each card gives the
+ * trending hook AND the real science: role, how it shows up, myth vs fact,
+ * and the levers (food / sleep / stress) that actually move it.               */
+const HORMONES = {
+  cortisol: {
+    name: "Cortisol", tag: "Stress & energy", c: "#D98A5A", cd: "#E7A579", soft: "#FBEDE2", softD: "#2A2016",
+    role: "Your wake-up hormone. Meant to be high in the morning and low at night.",
+    shows: "When it stays high: afternoon crashes, sugar cravings, puffiness and water retention, and lighter sleep.",
+    myth: "\u201CCortisol belly\u201D is fat you can melt with a supplement.",
+    fact: "Most of that look is bloating and water. Sleep, morning light and not skipping meals move cortisol far more than any powder.",
+    levers: [{ Icon: MoonStar, t: "Protect sleep" }, { Icon: Sunrise, t: "Morning light" }, { Icon: Utensils, t: "Eat regularly" }],
+  },
+  estrogen: {
+    name: "Estrogen", tag: "Skin, mood & cycle", c: "#C58BB4", cd: "#D6A0C8", soft: "#F7EAF3", softD: "#2A1E27",
+    role: "Rises and falls across your cycle. Supports skin, collagen, mood and steady energy.",
+    shows: "Higher: glowing skin, better mood, more energy. Dropping before your period: duller skin, lower mood, PMS.",
+    myth: "You need to \u201Cdetox\u201D estrogen to balance it.",
+    fact: "Your liver and gut already clear it. Fibre, protein and steady blood sugar support that far more than a cleanse.",
+    levers: [{ Icon: Leaf, t: "Fibre & greens" }, { Icon: Utensils, t: "Enough protein" }, { Icon: Wind, t: "Manage stress" }],
+  },
+  testosterone: {
+    name: "Testosterone", tag: "Drive & strength", c: "#5F9E82", cd: "#8FC5AC", soft: "#E7F1EB", softD: "#1B2A24",
+    role: "Present in everyone. Supports drive, muscle, energy and libido. Peaks in the morning.",
+    shows: "Healthy levels: motivation, strength gains, steady libido. Low: flat energy, weaker recovery, low drive.",
+    myth: "Special \u201Cbooster\u201D supplements raise it fast.",
+    fact: "Sleep, strength training and enough protein are what genuinely support it. Most boosters do little.",
+    levers: [{ Icon: Dumbbell, t: "Lift weights" }, { Icon: MoonStar, t: "Deep sleep" }, { Icon: Utensils, t: "Protein & healthy fats" }],
+  },
+  insulin: {
+    name: "Insulin", tag: "Blood sugar & skin", c: "#5E8AC0", cd: "#8DB2DE", soft: "#E9F0F8", softD: "#182430",
+    role: "Manages blood sugar. Big spikes and crashes drive cravings, energy dips and can worsen breakouts.",
+    shows: "Spiky days: 3pm crashes, cravings, restless focus, and for some, hormonal acne.",
+    myth: "Sugar alone causes acne and hormone chaos.",
+    fact: "It's the spike-and-crash pattern. Eating protein and fibre first, then carbs, plus a short walk, flattens it.",
+    levers: [{ Icon: Utensils, t: "Protein first" }, { Icon: Leaf, t: "Fibre with carbs" }, { Icon: Activity, t: "Walk after meals" }],
+  },
+  dopamine: {
+    name: "Dopamine", tag: "Motivation & focus", c: "#9E86C4", cd: "#B7A0DB", soft: "#F0EBF7", softD: "#241E2E",
+    role: "The drive and reward chemical. Constant quick hits (endless scrolling) blunt it over time.",
+    shows: "Blunted: low motivation, boredom, needing more stimulation to feel anything.",
+    myth: "A one-day \u201Cdopamine detox\u201D resets your brain.",
+    fact: "You can't detox dopamine. Sleep, morning light, movement and fewer constant hits restore sensitivity gradually.",
+    levers: [{ Icon: Sunrise, t: "Morning light" }, { Icon: Activity, t: "Move daily" }, { Icon: Coffee, t: "Fewer quick hits" }],
+  },
+  melatonin: {
+    name: "Melatonin", tag: "Sleep", c: "#6E8FC9", cd: "#8DB2DE", soft: "#E9F0F8", softD: "#182430",
+    role: "Rises at night to bring on sleep. Bright light in the evening delays it.",
+    shows: "Suppressed: trouble falling asleep, restless nights, groggy mornings.",
+    myth: "More melatonin supplement means better sleep.",
+    fact: "Timing beats dose. Dimming lights and screens-off an hour before bed does the heavy lifting.",
+    levers: [{ Icon: Moon, t: "Dim the evening" }, { Icon: Clock, t: "Consistent bedtime" }, { Icon: Sun, t: "Bright mornings" }],
+  },
+};
+
+function phaseForDay(day, len) { const ov = len - 14; if (day <= 5) return "menstrual"; if (day < ov - 1) return "follicular"; if (day <= ov + 1) return "ovulation"; return "luteal"; }
+const PHASES = {
+  menstrual: { name: "Menstrual", tab: "Rest & reset", c: "#C58B8B", cd: "#D6A0A0", soft: "#F6EAEA", softD: "#2A1E1E", hormone: "Estrogen and progesterone are at their lowest.", story: "A new cycle begins. Low energy here is by design, not a failure. Rest is the work.", feel: { energy: ["Low", 42], sleep: ["Variable", 60], stress: ["Sensitive", 52], mood: ["Inward", 55] } },
+  follicular: { name: "Follicular", tab: "Build & start", c: "#5F9E82", cd: "#8FC5AC", soft: "#E7F1EB", softD: "#1B2A24", hormone: "Estrogen is rising steadily.", story: "Your uphill week. Energy, focus, mood and skin all climb. A great time to start things.", feel: { energy: ["Rising", 80], sleep: ["Good", 85], stress: ["Steady", 78], mood: ["Upbeat", 82] } },
+  ovulation: { name: "Ovulation", tab: "Peak", c: "#D69A46", cd: "#E7B569", soft: "#FBF0DE", softD: "#2A2214", hormone: "Estrogen peaks, with a lift from testosterone.", story: "Your high point. Energy, confidence and skin peak for a few days. Use it, then let it taper.", feel: { energy: ["Peak", 92], sleep: ["Good", 84], stress: ["Low", 84], mood: ["Confident", 88] } },
+  luteal: { name: "Luteal", tab: "Wind down", c: "#9E86C4", cd: "#B7A0DB", soft: "#F0EBF7", softD: "#241E2E", hormone: "Progesterone rises, then both hormones fall before your period.", story: "The downhill week. Energy tapers; in the last days sleep, skin and mood can wobble. That's PMS — hormonal, not you.", feel: { energy: ["Tapering", 56], sleep: ["Lighter", 60], stress: ["Higher", 50], mood: ["Variable", 58] } },
+};
+
+function cycleInfo(profile) {
+  const len = profile?.cycleLength || 28;
+  const sinceStart = profile?.daysSince ?? 8;
+  const day = ((sinceStart % len) + len) % len + 1;
+  const key = phaseForDay(day, len);
+  return { len, day, key, phase: PHASES[key], daysToNext: len - day + 1 };
+}
+function cycleEnergyCurve(len) {
+  return Array.from({ length: len }, (_, i) => { const d = i + 1, ov = len - 14; let v;
+    if (d <= 5) v = 38 + d * 2; else if (d <= ov) v = 50 + (d - 5) * (42 / (ov - 5)); else if (d <= ov + 2) v = 92; else v = 92 - (d - ov - 2) * (44 / (len - ov - 2));
+    return { d, v: Math.round(Math.max(30, Math.min(95, v))) }; });
+}
+
+// Status wording — higher balance = healthier; the word carries the direction.
+const OFFWORD = { cortisol: "elevated", estrogen: "fluctuating", testosterone: "low", insulin: "spiky", dopamine: "low", melatonin: "suppressed" };
+const BALANCED = { melatonin: "On track", default: "Balanced" };
+function statusWord(key, level) {
+  if (level >= 76) return BALANCED[key] || BALANCED.default;
+  const off = OFFWORD[key]; const w = (level >= 62 ? "Slightly " : "") + off;
+  return w.charAt(0).toUpperCase() + w.slice(1);
+}
+// Which hormones to surface. Estrogen reflects the cycle phase for women.
+// Per-hormone swipe decks — "Scan your cortisol / testosterone / ...". Swiping
+// yes on a card lowers that hormone's balance by its weight.
+const CHECK_DECKS = {
+  cortisol: { blurb: "Your stress hormone — this check spots the signs it's running high.", cards: [
+    { q: "Wired but tired at night?", e: "\uD83D\uDD0C", w: 10 }, { q: "Hard to switch off?", e: "\uD83C\uDF00", w: 10 }, { q: "Afternoon energy crash?", e: "\uD83D\uDCC9", w: 9 }, { q: "Craving salt or sugar under stress?", e: "\uD83E\uDDC2", w: 9 }, { q: "Waking up already tense?", e: "\uD83D\uDE2C", w: 10 }, { q: "Restless or broken sleep?", e: "\uD83C\uDF19", w: 9 } ] },
+  testosterone: { blurb: "Drive, strength and libido — this check spots the signs it's low.", cards: [
+    { q: "Low motivation or drive lately?", e: "\uD83D\uDD0B", w: 9 }, { q: "Lower libido than usual?", e: "\u2764\uFE0F\u200D\uD83D\uDD25", w: 10 }, { q: "Harder to build or keep muscle?", e: "\uD83D\uDCAA", w: 8 }, { q: "Workout recovery feels slow?", e: "\uD83D\uDECC", w: 8 }, { q: "Lower mood or confidence?", e: "\u2601\uFE0F", w: 8 }, { q: "Tired even after a full night's sleep?", e: "\uD83D\uDE2E\u200D\uD83D\uDCA8", w: 8 }, { q: "Feeling less sharp \u2014 brain fog?", e: "\uD83C\uDF2B\uFE0F", w: 7 } ] },
+  estrogen: { blurb: "Skin, mood and cycle — this check spots symptoms of imbalance.", cards: [
+    { q: "Mood dips before your period?", e: "\uD83C\uDF27\uFE0F", w: 11 }, { q: "Skin duller or cyclic breakouts?", e: "\u2728", w: 9 }, { q: "Low energy in your second half?", e: "\uD83D\uDD0B", w: 10 }, { q: "Hot flushes or night sweats?", e: "\uD83D\uDD25", w: 10 }, { q: "Dryness or low libido?", e: "\uD83D\uDCA7", w: 9 }, { q: "Worse PMS than usual?", e: "\uD83D\uDCC5", w: 9 } ] },
+  insulin: { blurb: "Blood sugar and skin — this check spots spiky patterns.", cards: [
+    { q: "Strong sugar or carb cravings?", e: "\uD83C\uDF6C", w: 11 }, { q: "Energy crash after meals?", e: "\uD83D\uDCC9", w: 10 }, { q: "Hangry when you skip a meal?", e: "\uD83D\uDE20", w: 9 }, { q: "Breakouts around jaw or chin?", e: "\uD83C\uDFAF", w: 9 }, { q: "Bloated after carbs?", e: "\uD83C\uDF88", w: 9 }, { q: "Frequent afternoon slumps?", e: "\uD83E\uDD71", w: 8 } ] },
+  dopamine: { blurb: "Motivation and focus — this check spots when it's blunted.", cards: [
+    { q: "Low motivation to start things?", e: "\uD83C\uDFAF", w: 11 }, { q: "Reaching for your phone constantly?", e: "\uD83D\uDCF1", w: 10 }, { q: "Trouble focusing?", e: "\uD83C\uDF2B\uFE0F", w: 10 }, { q: "Less joy from usual things?", e: "\uD83C\uDF11", w: 10 }, { q: "Restless or easily bored?", e: "\uD83D\uDD01", w: 9 }, { q: "Procrastinating more?", e: "\u23F3", w: 8 } ] },
+  melatonin: { blurb: "Your sleep hormone — this check spots what's suppressing it.", cards: [
+    { q: "Hard to fall asleep?", e: "\uD83C\uDF19", w: 11 }, { q: "Screens right up to bedtime?", e: "\uD83D\uDCF1", w: 9 }, { q: "Waking during the night?", e: "\uD83D\uDC40", w: 10 }, { q: "Groggy in the morning?", e: "\uD83E\uDD71", w: 9 }, { q: "Irregular sleep times?", e: "\u23F0", w: 10 }, { q: "Rely on caffeine to function?", e: "\u2615", w: 8 } ] },
+};
+function hormoneList(profile) {
+  const hasCycle = profile?.sex === "Female";
+  const ci = cycleInfo(profile);
+  const checks = profile?.checks || {};
+  const phaseEstro = ({ menstrual: ["Low", 32], follicular: ["Rising", 72], ovulation: ["Peak", 92], luteal: ["Falling", 48] })[ci.key];
+  const build = (k) => {
+    if (typeof checks[k] === "number") return { status: statusWord(k, checks[k]), level: checks[k], checked: true };
+    if (k === "estrogen" && hasCycle) return { status: phaseEstro[0], level: phaseEstro[1], checked: true, phase: true };
+    return { status: "Not checked", level: null, checked: false };
+  };
+  const order = hasCycle ? ["estrogen", "cortisol", "insulin", "dopamine", "melatonin", "testosterone"]
+                         : ["testosterone", "cortisol", "insulin", "dopamine", "melatonin", "estrogen"];
+  return order.map((k) => ({ key: k, ...HORMONES[k], ...build(k) }));
+}
+
+/* ============================== PRIMITIVES ============================== */
+function Ring({ value, size = 132, stroke = 12, color, track, delay = 0, children }) {
+  const r = (size - stroke) / 2, circ = 2 * Math.PI * r; const [p, setP] = useState(0);
+  useEffect(() => { const id = setTimeout(() => setP(value), delay + 60); return () => clearTimeout(id); }, [value, delay]);
+  return (<div style={{ position: "relative", width: size, height: size }}>
+    <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={track} strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ - (p / 100) * circ} style={{ transition: "stroke-dashoffset 1.1s cubic-bezier(.22,1,.36,1)" }} />
+    </svg>
+    <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>{children}</div>
+  </div>);
+}
+function MiniRing({ value, color, track, size = 52, stroke = 6, delay = 0, children }) {
+  const r = (size - stroke) / 2, circ = 2 * Math.PI * r; const [p, setP] = useState(0);
+  useEffect(() => { const id = setTimeout(() => setP(value), delay + 60); return () => clearTimeout(id); }, [value, delay]);
+  return (<div style={{ position: "relative", width: size, height: size }}>
+    <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={track} strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ - (p / 100) * circ} style={{ transition: "stroke-dashoffset 1s cubic-bezier(.22,1,.36,1)" }} />
+    </svg>
+    <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>{children}</div>
+  </div>);
+}
+function CycleRing({ t, dark, day, len, phaseKey, size = 200, stroke = 15 }) {
+  const r = (size - stroke) / 2, cx = size / 2, cy = size / 2, ov = len - 14; const key = dark ? "cd" : "c";
+  const segs = [{ k: "menstrual", a: 0, b: 5 }, { k: "follicular", a: 5, b: ov - 1 }, { k: "ovulation", a: ov - 1, b: ov + 1 }, { k: "luteal", a: ov + 1, b: len }];
+  const pt = (f) => { const ang = (f * 360 - 90) * Math.PI / 180; return { x: cx + r * Math.cos(ang), y: cy + r * Math.sin(ang) }; };
+  const arc = (aD, bD) => { const gap = 3.2; const large = (bD - aD) / len > 0.5 ? 1 : 0; const sg = pt(aD / len + gap / 360), eg = pt(bD / len - gap / 360); return `M ${sg.x} ${sg.y} A ${r} ${r} 0 ${large} 1 ${eg.x} ${eg.y}`; };
+  const marker = pt((day - 0.5) / len); const ph = PHASES[phaseKey];
+  return (<div style={{ position: "relative", width: size, height: size }}>
+    <svg width={size} height={size}>
+      {segs.map((s) => <path key={s.k} d={arc(s.a, s.b)} fill="none" stroke={PHASES[s.k][key]} strokeWidth={s.k === phaseKey ? stroke + 3 : stroke} strokeLinecap="round" opacity={s.k === phaseKey ? 1 : 0.4} />)}
+      <circle cx={marker.x} cy={marker.y} r={9} fill={dark ? "#0B0C0E" : "#fff"} stroke={ph[key]} strokeWidth={4} />
+    </svg>
+    <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textAlign: "center" }}>
+      <div><div style={{ fontSize: 12.5, fontWeight: 650, letterSpacing: ".06em", color: t.sub, textTransform: "uppercase" }}>Day {day}</div>
+        <div style={{ fontSize: 26, fontWeight: 750, color: t.ink, lineHeight: 1.1, margin: "2px 0" }}>{ph.name}</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: ph[key] }}>{ph.tab}</div></div>
+    </div>
+  </div>);
+}
+
+// Brand mark — the cycle ring (direction 02)
+function SomaRing({ size = 36, color = "#fff", marker = "#fff" }) {
+  return (<svg width={size} height={size} viewBox="0 0 100 100" fill="none"><circle cx="50" cy="50" r="34" stroke={color} strokeWidth="11" strokeLinecap="round" strokeDasharray="168 46" transform="rotate(-104 50 50)" /><circle cx="72" cy="24" r="8.5" fill={marker} /></svg>);
+}
+const Card = ({ t, children, style, onClick, pad = 18 }) => <div onClick={onClick} style={{ background: t.card, borderRadius: 22, padding: pad, boxShadow: t.shadow, border: `1px solid ${t.line}`, cursor: onClick ? "pointer" : "default", ...style }}>{children}</div>;
+const Sheet = ({ children }) => <div style={{ padding: "0 18px 120px", animation: "fade .5s ease both" }}>{children}</div>;
+const Eyebrow = ({ t, children, right }) => <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", margin: "26px 2px 12px" }}><span style={{ fontSize: 12.5, fontWeight: 650, letterSpacing: ".08em", textTransform: "uppercase", color: t.sub }}>{children}</span>{right}</div>;
+
+function FeelRow({ t, feel, accent }) {
+  const items = [["Energy", feel.energy], ["Sleep", feel.sleep], ["Stress", feel.stress], ["Mood", feel.mood]];
+  return (<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+    {items.map(([label, [word, v]]) => (<div key={label} style={{ background: t.card2, borderRadius: 16, padding: "13px 14px" }}>
+      <div style={{ fontSize: 12.5, color: t.sub, fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 17, fontWeight: 700, color: t.ink, margin: "3px 0 8px" }}>{word}</div>
+      <div style={{ height: 5, borderRadius: 3, background: t.line, overflow: "hidden" }}><div style={{ width: `${v}%`, height: "100%", borderRadius: 3, background: accent, transition: "width 1s cubic-bezier(.22,1,.36,1)" }} /></div>
+    </div>))}
+  </div>);
+}
+
+// Horizontal hormone strip — the viral hook, tappable to the detail sheet
+function HormoneStrip({ t, dark, list, onOpen }) {
+  const key = dark ? "cd" : "c";
+  return (<div style={{ display: "flex", gap: 11, overflowX: "auto", margin: "0 -18px", padding: "2px 18px 6px", scrollbarWidth: "none" }}>
+    {list.map((h, i) => (<Card key={h.key} t={t} pad={15} onClick={() => onOpen(h)} style={{ minWidth: 138, maxWidth: 138 }}>
+      <MiniRing value={h.level ?? 0} color={h.checked ? h[key] : t.line} track={t.line} delay={i * 80}><span style={{ fontSize: 15, fontWeight: 750, color: h.checked ? t.ink : t.faint }}>{h.level ?? "—"}</span></MiniRing>
+      <div style={{ fontSize: 15, fontWeight: 700, color: t.ink, marginTop: 11 }}>{h.name}</div>
+      <div style={{ fontSize: 12.5, color: h.checked ? h[key] : t.faint, fontWeight: 600, marginTop: 2 }}>{h.status}</div>
+      <div style={{ fontSize: 11.5, color: t.sub, marginTop: 1 }}>{h.tag}</div>
+    </Card>))}
+  </div>);
+}
+
+// Detail sheet — role, how it shows up, myth vs fact (the shareable bit), levers
+function HormoneSheet({ t, dark, h, onClose, goCoach, onCheck }) {
+  const key = dark ? "cd" : "c"; const accent = h[key];
+  return (<div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", zIndex: 50, animation: "fade .25s ease" }}>
+    <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxHeight: "88%", overflowY: "auto", background: t.bg, borderRadius: "26px 26px 0 0", padding: "16px 22px 30px", animation: "slideUp .3s cubic-bezier(.22,1,.36,1)" }}>
+      <div style={{ width: 38, height: 5, borderRadius: 3, background: t.line, margin: "0 auto 18px" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 16 }}>
+        <div style={{ width: 52, height: 52, borderRadius: 16, background: dark ? h.softD : h.soft, display: "grid", placeItems: "center", flexShrink: 0 }}><Droplet size={24} color={accent} /></div>
+        <div style={{ flex: 1 }}><div style={{ fontSize: 21, fontWeight: 750, color: t.ink }}>{h.name}</div><div style={{ fontSize: 13, color: t.sub }}>{h.tag}</div></div>
+        <span style={{ fontSize: 12.5, fontWeight: 650, color: accent, background: dark ? h.softD : h.soft, padding: "6px 12px", borderRadius: 20 }}>{h.status}</span>
+      </div>
+      <p style={{ fontSize: 15, color: t.ink, lineHeight: 1.55, margin: "0 0 16px" }}>{h.role}</p>
+
+      <div style={{ fontSize: 12.5, fontWeight: 650, letterSpacing: ".06em", textTransform: "uppercase", color: t.sub, marginBottom: 8 }}>How it shows up</div>
+      <p style={{ fontSize: 14.5, color: t.ink, lineHeight: 1.55, margin: "0 0 18px" }}>{h.shows}</p>
+
+      <div style={{ fontSize: 12.5, fontWeight: 650, letterSpacing: ".06em", textTransform: "uppercase", color: accent, marginBottom: 8 }}>Myth check</div>
+      <div style={{ display: "grid", gap: 8, marginBottom: 18 }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start", background: t.card, border: `1px solid ${t.line}`, borderRadius: 14, padding: "13px 14px" }}>
+          <div style={{ width: 22, height: 22, borderRadius: 11, background: "#E7A2A2", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}><X size={13} color="#fff" strokeWidth={3} /></div>
+          <div><span style={{ fontSize: 12, fontWeight: 700, color: t.sub, textTransform: "uppercase", letterSpacing: ".04em" }}>Myth</span><div style={{ fontSize: 14, color: t.ink, lineHeight: 1.5 }}>{h.myth}</div></div>
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start", background: t.card, border: `1px solid ${t.line}`, borderRadius: 14, padding: "13px 14px" }}>
+          <div style={{ width: 22, height: 22, borderRadius: 11, background: t.sage, display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}><Check size={13} color="#fff" strokeWidth={3} /></div>
+          <div><span style={{ fontSize: 12, fontWeight: 700, color: t.sage, textTransform: "uppercase", letterSpacing: ".04em" }}>What's true</span><div style={{ fontSize: 14, color: t.ink, lineHeight: 1.5 }}>{h.fact}</div></div>
+        </div>
+      </div>
+
+      <div style={{ fontSize: 12.5, fontWeight: 650, letterSpacing: ".06em", textTransform: "uppercase", color: t.sub, marginBottom: 8 }}>What actually moves it</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 22 }}>
+        {h.levers.map((l) => <span key={l.t} style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 14px", borderRadius: 14, background: t.card, border: `1px solid ${t.line}`, fontSize: 13.5, fontWeight: 600, color: t.ink }}><l.Icon size={16} color={accent} />{l.t}</span>)}
+      </div>
+      <button onClick={() => { onClose(); onCheck(h.key); }} style={{ width: "100%", padding: 15, borderRadius: 15, border: "none", background: t.ink, color: t.bg, fontFamily: FONT, fontSize: 15.5, fontWeight: 700, cursor: "pointer" }}>Scan your {h.name}</button>
+      <button onClick={() => { onClose(); goCoach(); }} style={{ width: "100%", padding: 12, marginTop: 8, borderRadius: 15, border: "none", background: "transparent", color: t.sub, fontFamily: FONT, fontSize: 14.5, fontWeight: 600, cursor: "pointer" }}>Ask the coach about {h.name}</button>
+    </div>
+  </div>);
+}
+
+/* ============================== CONNECT SHEET ============================== */
+function ConnectSheet({ t, dark, onClose, onConnect }) {
+  return (<div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", zIndex: 60, animation: "fade .25s ease" }}>
+    <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", background: t.bg, borderRadius: "26px 26px 0 0", padding: "22px 22px 30px", animation: "slideUp .3s cubic-bezier(.22,1,.36,1)" }}>
+      <div style={{ width: 38, height: 5, borderRadius: 3, background: t.line, margin: "0 auto 18px" }} />
+      <div style={{ width: 52, height: 52, borderRadius: 16, background: t.sageSoft, display: "grid", placeItems: "center", margin: "0 auto 14px" }}><Heart size={26} color={t.sage} /></div>
+      <div style={{ textAlign: "center", fontSize: 20, fontWeight: 750, color: t.ink }}>Connect Apple Health</div>
+      <div style={{ textAlign: "center", fontSize: 14, color: t.sub, margin: "6px 24px 20px", lineHeight: 1.5 }}>SOMA reads your data to sharpen your hormone picture — it never writes or shares it.</div>
+      <div style={{ display: "grid", gap: 10, marginBottom: 22 }}>{[["Cycle & period dates", CircleDot], ["Sleep & time in bed", MoonStar], ["Heart rate & HRV", Heart], ["Steps & workouts", Activity]].map(([l, Ic]) => (<div key={l} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: t.card, borderRadius: 14, border: `1px solid ${t.line}` }}><Ic size={18} color={t.sage} /><span style={{ flex: 1, fontSize: 14.5, color: t.ink, fontWeight: 550 }}>{l}</span><Check size={17} color={t.sage} strokeWidth={2.5} /></div>))}</div>
+      <button onClick={onConnect} style={{ width: "100%", padding: 15, borderRadius: 15, border: "none", background: t.ink, color: t.bg, fontFamily: FONT, fontSize: 15.5, fontWeight: 700, cursor: "pointer" }}>Allow access</button>
+      <button onClick={onClose} style={{ width: "100%", padding: 12, marginTop: 8, borderRadius: 15, border: "none", background: "transparent", color: t.sub, fontFamily: FONT, fontSize: 14.5, fontWeight: 600, cursor: "pointer" }}>Maybe later</button>
+    </div>
+  </div>);
+}
+
+/* ============================== ONBOARDING ============================== */
+const ACTIVITY = ["Sedentary", "Light", "Moderate", "Very active"];
+const GOALS = ["Lower my cortisol", "Balance my hormones", "Steadier energy", "Better sleep", "Clearer skin", "Support testosterone", "Ease PMS", "Fewer cravings"];
+const DIETS = ["Omnivore", "Mediterranean", "Vegetarian", "Vegan", "Low-carb", "Pescatarian"];
+const SLEEPQ = ["Poor", "Fair", "Good", "Great"];
+
+function Onboarding({ t, dark, onDone }) {
+  const [i, setI] = useState(0);
+  const [a, setA] = useState({ name: "", age: 29, sex: "", height: 170, weight: 66, activity: "", goals: [], sleep: "", stress: 5, diet: "", daysSince: 8, cycleLength: 28, regular: "", symptoms: [] });
+  const set = (k, v) => setA((s) => ({ ...s, [k]: v }));
+  const toggle = (k, v) => setA((s) => ({ ...s, [k]: s[k].includes(v) ? s[k].filter((x) => x !== v) : [...s[k], v] }));
+  const hasCycle = a.sex === "Female";
+  const Chip = ({ active, children, onClick, full }) => <button onClick={onClick} style={{ padding: "13px 16px", borderRadius: 15, border: `1.5px solid ${active ? t.sage : t.line}`, background: active ? t.sageSoft : t.card, color: active ? t.sage : t.ink, fontFamily: FONT, fontSize: 15, fontWeight: 600, cursor: "pointer", flex: full ? "1 1 100%" : "1 1 44%", transition: "all .18s", textAlign: "left" }}>{children}</button>;
+  const wrap = { display: "flex", flexWrap: "wrap", gap: 10 };
+  const H = ({ children, s }) => (<><h1 style={{ fontSize: 26, fontWeight: 750, letterSpacing: "-.02em", color: t.ink, margin: "8px 0 6px", lineHeight: 1.22 }}>{children}</h1>{s && <p style={{ fontSize: 15.5, color: t.sub, margin: "0 0 24px", lineHeight: 1.5 }}>{s}</p>}</>);
+  const inp = { width: "100%", fontFamily: FONT, fontSize: 17, padding: "15px 16px", borderRadius: 15, border: `1.5px solid ${t.line}`, background: t.card2, color: t.ink, outline: "none", boxSizing: "border-box" };
+  const Slider = ({ v, on, min, max, label }) => (<div><input type="range" min={min} max={max} value={v} onChange={(e) => on(+e.target.value)} style={{ width: "100%", accentColor: t.sage }} /><div style={{ textAlign: "center", fontSize: 32, fontWeight: 750, color: t.sage, marginTop: 8 }}>{v}<span style={{ fontSize: 15, color: t.sub, fontWeight: 600 }}>{label}</span></div></div>);
+
+  const steps = [];
+  steps.push({ valid: true, r: (<div style={{ textAlign: "center", marginTop: 34 }}>
+    <div style={{ width: 72, height: 72, borderRadius: 22, margin: "0 auto 22px", display: "grid", placeItems: "center", background: `linear-gradient(150deg, ${t.sage}, ${t.blue})`, boxShadow: t.shadowLg }}><SomaRing size={42} /></div>
+    <H s="Cortisol, estrogen, testosterone, insulin — the hormones everyone's talking about. SOMA reads yours and cuts through the noise with what's actually true.">Meet SOMA</H>
+    <div style={{ display: "grid", gap: 12, textAlign: "left", marginTop: 6 }}>{[["The science behind the trends", "Every viral claim, checked against real research.", ShieldCheck], ["Personal to your body", "Read against your cycle, sleep and stress.", Sparkles], ["Plain, not preachy", "What's happening, why, and what actually helps.", Info]].map(([ti, s, Ic]) => (<div key={ti} style={{ display: "flex", gap: 13, alignItems: "flex-start" }}><div style={{ width: 38, height: 38, borderRadius: 12, background: t.sageSoft, display: "grid", placeItems: "center", flexShrink: 0 }}><Ic size={18} color={t.sage} /></div><div><div style={{ fontWeight: 650, color: t.ink, fontSize: 15 }}>{ti}</div><div style={{ color: t.sub, fontSize: 13.5, lineHeight: 1.45 }}>{s}</div></div></div>))}</div>
+  </div>) });
+  steps.push({ valid: a.name.trim().length > 0, r: (<><H s="Your coach speaks with you, not at you.">What should we call you?</H><input autoFocus style={inp} placeholder="First name" value={a.name} onChange={(e) => set("name", e.target.value)} /></>) });
+  steps.push({ valid: true, r: (<><H s="This sets your baselines.">How old are you?</H><Slider v={a.age} on={(v) => set("age", v)} min={16} max={85} label=" years" /></>) });
+  steps.push({ valid: !!a.sex, r: (<><H s="Everyone has all these hormones — the balance differs. Female unlocks the full cycle view.">Sex assigned at birth</H><div style={wrap}>{["Female", "Male", "Intersex", "Prefer not to say"].map((s) => <Chip key={s} active={a.sex === s} onClick={() => set("sex", s)}>{s}</Chip>)}</div></>) });
+  if (hasCycle) steps.push({ valid: !!a.regular, r: (<><H s="Roughly is fine — SOMA refines it as you go, or once you connect Apple Health.">Let's find your cycle</H><div style={{ fontSize: 13, color: t.sub, marginBottom: 6, fontWeight: 600 }}>Your last period started · {a.daysSince} days ago</div><input type="range" min={0} max={30} value={a.daysSince} onChange={(e) => set("daysSince", +e.target.value)} style={{ width: "100%", accentColor: t.sage }} /><div style={{ fontSize: 13, color: t.sub, margin: "18px 0 6px", fontWeight: 600 }}>Usual cycle length · {a.cycleLength} days</div><input type="range" min={21} max={40} value={a.cycleLength} onChange={(e) => set("cycleLength", +e.target.value)} style={{ width: "100%", accentColor: t.sage }} /><div style={{ fontSize: 13, color: t.sub, margin: "20px 0 8px", fontWeight: 600 }}>Is it regular?</div><div style={wrap}>{["Regular", "Irregular", "Not sure"].map((s) => <Chip key={s} active={a.regular === s} onClick={() => set("regular", s)}>{s}</Chip>)}</div></>) });
+  steps.push({ valid: !!a.activity, r: (<><H s="How active is a normal week?">Activity level</H><div style={wrap}>{ACTIVITY.map((s) => <Chip key={s} active={a.activity === s} onClick={() => set("activity", s)} full>{s}</Chip>)}</div></>) });
+  steps.push({ valid: a.goals.length > 0, r: (<><H s="Pick as many as feel true. This shapes your daily guidance.">What are you working on?</H><div style={wrap}>{GOALS.map((s) => <Chip key={s} active={a.goals.includes(s)} onClick={() => toggle("goals", s)}>{s}</Chip>)}</div></>) });
+  steps.push({ valid: !!a.sleep, r: (<><H s="Sleep is the biggest lever on nearly every hormone.">How's your sleep lately?</H><div style={wrap}>{SLEEPQ.map((s) => <Chip key={s} active={a.sleep === s} onClick={() => set("sleep", s)}>{s}</Chip>)}</div></>) });
+  steps.push({ valid: true, r: (<><H s="1 is calm, 10 is running hot. This drives your cortisol.">Your typical stress</H><Slider v={a.stress} on={(v) => set("stress", v)} min={1} max={10} label=" / 10" /></>) });
+  steps.push({ valid: !!a.diet, r: (<><H s="Food is one of the fastest ways to move your hormones.">Your diet</H><div style={wrap}>{DIETS.map((s) => <Chip key={s} active={a.diet === s} onClick={() => set("diet", s)}>{s}</Chip>)}</div></>) });
+
+  const TOTAL = steps.length;
+  if (i >= TOTAL) return <Generating t={t} dark={dark} a={a} onDone={() => onDone(a)} />;
+  const cur = steps[i];
+  return (<div style={{ minHeight: "100%", background: t.bg, display: "flex", flexDirection: "column", fontFamily: FONT }}>
+    <div style={{ padding: "20px 18px 0" }}><div style={{ display: "flex", gap: 5 }}>{Array.from({ length: TOTAL }).map((_, k) => <div key={k} style={{ flex: 1, height: 4, borderRadius: 3, background: k <= i ? t.sage : t.line, transition: "background .4s" }} />)}</div></div>
+    <div style={{ flex: 1, padding: "22px 22px 12px", overflowY: "auto" }}>{cur.r}</div>
+    <div style={{ padding: "12px 18px 26px", display: "flex", gap: 12, borderTop: `1px solid ${t.line}`, background: t.bg }}>
+      {i > 0 && <button onClick={() => setI(i - 1)} style={{ width: 52, borderRadius: 16, border: `1.5px solid ${t.line}`, background: t.card, color: t.ink, cursor: "pointer", display: "grid", placeItems: "center" }}><ChevronLeft size={20} /></button>}
+      <button disabled={!cur.valid} onClick={() => setI(i + 1)} style={{ flex: 1, padding: 16, borderRadius: 16, border: "none", cursor: cur.valid ? "pointer" : "default", background: cur.valid ? t.ink : t.line, color: cur.valid ? t.bg : t.faint, fontFamily: FONT, fontSize: 16, fontWeight: 650, transition: "all .2s" }}>{i === 0 ? "Get started" : i === TOTAL - 1 ? "Build my profile" : "Continue"}</button>
+    </div>
+  </div>);
+}
+
+function Generating({ t, dark, a, onDone }) {
+  const [done, setDone] = useState(false);
+  useEffect(() => { const id = setTimeout(() => setDone(true), 2000); return () => clearTimeout(id); }, []);
+  const ci = useMemo(() => cycleInfo(a), [a]); const hasCycle = a.sex === "Female"; const key = dark ? "cd" : "c";
+  if (!done) return (<div style={{ minHeight: "100%", background: t.bg, display: "grid", placeItems: "center", fontFamily: FONT }}><div style={{ textAlign: "center" }}><div style={{ width: 64, height: 64, borderRadius: 20, margin: "0 auto 20px", display: "grid", placeItems: "center", background: `linear-gradient(150deg, ${t.sage}, ${t.blue})`, animation: "pulse 1.4s ease-in-out infinite" }}><SomaRing size={34} /></div><div style={{ fontSize: 19, fontWeight: 650, color: t.ink }}>Reading your hormones</div><div style={{ fontSize: 14.5, color: t.sub, marginTop: 6 }}>Building your picture…</div></div></div>);
+  return (<div style={{ minHeight: "100%", background: t.bg, fontFamily: FONT, display: "flex", flexDirection: "column" }}>
+    <div style={{ flex: 1, overflowY: "auto", padding: "36px 22px 20px", textAlign: "center" }}>
+      <div style={{ fontSize: 13, fontWeight: 650, letterSpacing: ".1em", textTransform: "uppercase", color: t.sage }}>You're all set</div>
+      <h1 style={{ fontSize: 26, fontWeight: 750, color: t.ink, margin: "8px 0 22px", letterSpacing: "-.02em" }}>Nice to meet you, {a.name}</h1>
+      {hasCycle ? <Card t={t} pad={22}><CycleRing t={t} dark={dark} day={ci.day} len={ci.len} phaseKey={ci.key} /><div style={{ fontSize: 14.5, color: t.sub, lineHeight: 1.5, marginTop: 14 }}>{ci.phase.story}</div></Card>
+        : <Card t={t} pad={22}><Ring value={72} color={t.sage} track={t.line}><div><div style={{ fontSize: 40, fontWeight: 750, color: t.ink }}>72</div><div style={{ fontSize: 12, color: t.sub, fontWeight: 650 }}>BASELINE</div></div></Ring><div style={{ fontSize: 14.5, color: t.sub, marginTop: 12, lineHeight: 1.5 }}>SOMA will track your daily hormone rhythm — cortisol and testosterone peak in the morning, melatonin at night.</div></Card>}
+      <Card t={t} style={{ textAlign: "left", marginTop: 14, display: "flex", gap: 13, alignItems: "flex-start" }}>
+        <div style={{ width: 42, height: 42, borderRadius: 13, background: t.sageSoft, display: "grid", placeItems: "center", flexShrink: 0 }}><SomaRing size={24} color={t.sage} marker={t.sage} /></div>
+        <div><div style={{ fontSize: 15, fontWeight: 700, color: t.ink }}>Now run your first check</div><div style={{ fontSize: 13.5, color: t.sub, lineHeight: 1.5, marginTop: 2 }}>Swipe through a 60-second check for each hormone to see where you stand. Nothing's estimated until you do.</div></div>
+      </Card>
+      <Card t={t} style={{ textAlign: "left", marginTop: 14 }}><div style={{ fontSize: 13, fontWeight: 650, color: t.sub, marginBottom: 10 }}>Your focus</div><div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{a.goals.map((g) => <span key={g} style={{ padding: "8px 13px", borderRadius: 12, background: t.sageSoft, color: t.sage, fontSize: 13.5, fontWeight: 600 }}>{g}</span>)}</div></Card>
+    </div>
+    <div style={{ padding: "12px 18px 26px", background: t.bg }}><button onClick={onDone} style={{ width: "100%", padding: 16, borderRadius: 16, border: "none", background: t.ink, color: t.bg, fontFamily: FONT, fontSize: 16, fontWeight: 650, cursor: "pointer" }}>Enter SOMA</button></div>
+  </div>);
+}
+
+/* ============================== HOME ============================== */
+function ScoreTooltip(t) { return ({ active, payload }) => active && payload?.length ? <div style={{ background: t.ink, color: t.bg, padding: "5px 9px", borderRadius: 9, fontSize: 12, fontWeight: 600, fontFamily: FONT }}>{payload[0].value}</div> : null; }
+
+function HomeScreen({ t, dark, profile, focus, setFocus, goCoach, goHormones, connected, onConnect, openHormone, openCheck, streak, onShare, premium, onPaywall, history }) {
+  const score = hormoneScore(profile);
+  const name = profile?.name || "there";
+  const hour = new Date().getHours();
+  const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const hasCycle = profile?.sex === "Female";
+  const ci = useMemo(() => cycleInfo(profile), [profile]);
+  const list = useMemo(() => hormoneList(profile), [profile]);
+  const ph = ci.phase; const key = dark ? "cd" : "c"; const accent = ph[key];
+  const curve = useMemo(() => cycleEnergyCurve(ci.len), [ci.len]);
+  const done = focus.filter((f) => f.done).length;
+  const featured = HORMONES.cortisol;
+
+  return (<Sheet>
+    <div style={{ paddingTop: 8, display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+      <div><div style={{ fontSize: 15, color: t.sub, fontWeight: 550 }}>{greet},</div><div style={{ fontSize: 28, fontWeight: 750, color: t.ink, letterSpacing: "-.02em" }}>{name}</div></div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, background: t.card, border: `1px solid ${t.line}`, borderRadius: 20, padding: "7px 13px", boxShadow: t.shadow }}><Flame size={16} color="#E08A46" /><span style={{ fontSize: 13.5, fontWeight: 750, color: t.ink }}>{streak}</span><span style={{ fontSize: 12, color: t.sub, fontWeight: 600 }}>day{streak === 1 ? "" : "s"}</span></div>
+    </div>
+
+    {/* HORMONE SCORE — the one shareable number */}
+    <Card t={t} pad={20} style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 18 }}>
+      {score != null ? (<>
+        <Ring value={score} size={108} stroke={11} color={score >= 76 ? t.sage : score >= 60 ? "#D69A46" : "#D98A5A"} track={t.line}>
+          <div style={{ textAlign: "center" }}><div style={{ fontSize: 34, fontWeight: 800, color: t.ink, lineHeight: 1 }}>{score}</div><div style={{ fontSize: 10.5, color: t.sub, fontWeight: 700, letterSpacing: ".05em" }}>SCORE</div></div>
+        </Ring>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 16.5, fontWeight: 750, color: t.ink, lineHeight: 1.25 }}>{score >= 76 ? "Your hormones look balanced" : score >= 60 ? "A few hormones need attention" : "Your hormones are running the show"}</div>
+          <div style={{ fontSize: 12.5, color: t.sub, marginTop: 4 }}>From your scans · not a diagnosis</div>
+          <button onClick={() => onShare({ label: "hormone", score, status: score >= 76 ? "Balanced" : score >= 60 ? "Needs attention" : "Off balance", color: score >= 76 ? "#8FC5AC" : score >= 60 ? "#E7B569" : "#E7A579" })} style={{ marginTop: 10, padding: "9px 16px", borderRadius: 13, border: "none", background: t.ink, color: t.bg, fontFamily: FONT, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Share my score</button>
+        </div>
+      </>) : (<>
+        <div style={{ width: 108, height: 108, borderRadius: 54, border: `11px solid ${t.line}`, display: "grid", placeItems: "center", boxSizing: "border-box" }}><span style={{ fontSize: 28, fontWeight: 800, color: t.faint }}>?</span></div>
+        <div style={{ flex: 1 }}><div style={{ fontSize: 16.5, fontWeight: 750, color: t.ink, lineHeight: 1.25 }}>What's your hormone score?</div><div style={{ fontSize: 13, color: t.sub, marginTop: 4, lineHeight: 1.45 }}>Run your first 60-second scan to find out.</div></div>
+      </>)}
+    </Card>
+
+    {/* Trends — the premium payoff */}
+    <Card t={t} onClick={premium ? undefined : onPaywall} style={{ marginTop: 12, padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 14.5, fontWeight: 750, color: t.ink }}>Your score over time</span>
+        {!premium && <span style={{ fontSize: 11.5, fontWeight: 750, color: "#E7B569", background: dark ? "#2A2214" : "#FBF0DE", padding: "5px 11px", borderRadius: 16, display: "inline-flex", alignItems: "center", gap: 5 }}><Crown size={12} /> PREMIUM</span>}
+      </div>
+      {premium ? (
+        history && history.length >= 2 ? (
+          <div style={{ height: 74, marginTop: 8 }}><ResponsiveContainer width="100%" height="100%"><AreaChart data={history} margin={{ top: 4, right: 2, left: 2, bottom: 0 }}><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={t.sage} stopOpacity={0.3} /><stop offset="100%" stopColor={t.sage} stopOpacity={0} /></linearGradient></defs><XAxis dataKey="d" tick={{ fontSize: 10, fill: t.sub }} axisLine={false} tickLine={false} /><YAxis hide domain={[20, 100]} /><Area type="monotone" dataKey="v" stroke={t.sage} strokeWidth={2.4} fill="url(#hg)" /></AreaChart></ResponsiveContainer></div>
+        ) : <div style={{ fontSize: 13, color: t.sub, marginTop: 8, lineHeight: 1.45 }}>Tracking started — scan again tomorrow and your trend line begins.</div>
+      ) : <div style={{ fontSize: 13, color: t.sub, marginTop: 8, lineHeight: 1.45 }}>See whether you're actually improving week over week.</div>}
+    </Card>
+
+    {/* HORMONES — the viral hook, up top */}
+    <Eyebrow t={t} right={<span onClick={goHormones} style={{ fontSize: 13, color: t.sage, fontWeight: 650, cursor: "pointer" }}>See all</span>}>Your hormones today</Eyebrow>
+    <HormoneStrip t={t} dark={dark} list={list} onOpen={openHormone} />
+
+    {/* Featured check */}
+    <Card t={t} onClick={() => openCheck("cortisol")} style={{ marginTop: 14, background: dark ? featured.softD : featured.soft, border: `1px solid ${t.line}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: ".06em", color: featured[key], textTransform: "uppercase" }}>Free scan · 60 sec</span></div>
+      <div style={{ fontSize: 17, fontWeight: 750, color: t.ink, lineHeight: 1.3, marginBottom: 6 }}>Scan your cortisol</div>
+      <p style={{ fontSize: 14, color: t.ink, lineHeight: 1.5, margin: 0, opacity: 0.85 }}>Wired, crashing, craving sugar? Find out if your stress hormone is running high — and what to do about it.</p>
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 12, fontSize: 13.5, fontWeight: 650, color: featured[key] }}>Start the scan <ChevronRight size={16} /></div>
+    </Card>
+
+    {/* Cycle (women) */}
+    {hasCycle && (<>
+      <Eyebrow t={t}>Where your cycle sits</Eyebrow>
+      <Card t={t} pad={22} style={{ textAlign: "center", background: dark ? ph.softD : ph.soft, border: `1px solid ${t.line}` }}>
+        <CycleRing t={t} dark={dark} day={ci.day} len={ci.len} phaseKey={ci.key} />
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: t.card, borderRadius: 20, padding: "6px 13px", marginTop: 16, boxShadow: t.shadow }}><span style={{ width: 8, height: 8, borderRadius: 8, background: accent }} /><span style={{ fontSize: 13, fontWeight: 650, color: t.ink }}>{ph.hormone}</span></div>
+        <p style={{ fontSize: 14.5, color: t.ink, lineHeight: 1.55, margin: "14px 4px 0", opacity: 0.9 }}>{ph.story}</p>
+      </Card>
+    </>)}
+
+    {/* How you'll feel */}
+    <Eyebrow t={t}>How you'll likely feel</Eyebrow>
+    <FeelRow t={t} feel={ph.feel} accent={hasCycle ? accent : t.sage} />
+
+    {/* Today's focus */}
+    <Eyebrow t={t} right={<span style={{ fontSize: 13, color: t.sage, fontWeight: 650 }}>{done}/{focus.length} done</span>}>Today's focus</Eyebrow>
+    <Card t={t} pad={6}>{focus.map((ac, idx) => (<div key={idx} onClick={() => setFocus(focus.map((x, j) => j === idx ? { ...x, done: !x.done } : x))} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 12px", cursor: "pointer", borderBottom: idx < focus.length - 1 ? `1px solid ${t.line}` : "none" }}><div style={{ width: 26, height: 26, borderRadius: 9, flexShrink: 0, display: "grid", placeItems: "center", background: ac.done ? t.sage : "transparent", border: `1.5px solid ${ac.done ? t.sage : t.line}`, transition: "all .2s" }}>{ac.done && <Check size={16} color="#fff" strokeWidth={3} />}</div><ac.Icon size={19} color={t.sub} style={{ flexShrink: 0 }} /><div style={{ flex: 1 }}><div style={{ fontSize: 14.5, fontWeight: 600, color: ac.done ? t.faint : t.ink, textDecoration: ac.done ? "line-through" : "none" }}>{ac.t}</div><div style={{ fontSize: 12.5, color: t.sub }}>{ac.n}</div></div></div>))}</Card>
+
+    {/* Cycle energy curve */}
+    {hasCycle && (<><Eyebrow t={t} right={<span style={{ fontSize: 12.5, color: t.sub, fontWeight: 600 }}>You are here</span>}>Energy across your cycle</Eyebrow>
+      <Card t={t}><div style={{ height: 96 }}><ResponsiveContainer width="100%" height="100%"><AreaChart data={curve} margin={{ top: 6, right: 4, left: 4, bottom: 0 }}><defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={accent} stopOpacity={0.34} /><stop offset="100%" stopColor={accent} stopOpacity={0} /></linearGradient></defs><XAxis dataKey="d" ticks={[1, 7, 14, 21, ci.len]} tick={{ fontSize: 10, fill: t.sub }} axisLine={false} tickLine={false} /><YAxis hide domain={[20, 100]} /><Tooltip content={ScoreTooltip(t)} cursor={false} /><Area type="monotone" dataKey="v" stroke={accent} strokeWidth={2.6} fill="url(#cg)" /></AreaChart></ResponsiveContainer></div><div style={{ fontSize: 13, color: t.sub, lineHeight: 1.5, marginTop: 6, textAlign: "center" }}>Estrogen lifts energy to ovulation, then eases toward your period. Plan the hard stuff for the peak.</div></Card></>)}
+
+    {!connected && <Card t={t} onClick={onConnect} style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 13 }}><div style={{ width: 42, height: 42, borderRadius: 13, background: t.sageSoft, display: "grid", placeItems: "center", flexShrink: 0 }}><Heart size={20} color={t.sage} /></div><div style={{ flex: 1 }}><div style={{ fontSize: 14.5, fontWeight: 700, color: t.ink }}>Connect Apple Health</div><div style={{ fontSize: 13, color: t.sub }}>Sharpen your hormone picture automatically</div></div><ChevronRight size={20} color={t.faint} /></Card>}
+
+    <Card t={t} onClick={goCoach} style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 14, background: `linear-gradient(135deg, ${t.sage}, ${t.blue})`, border: "none" }}><div style={{ width: 44, height: 44, borderRadius: 14, background: "rgba(255,255,255,.2)", display: "grid", placeItems: "center", flexShrink: 0 }}><MessageCircle size={22} color="#fff" /></div><div style={{ flex: 1 }}><div style={{ fontSize: 15.5, fontWeight: 700, color: "#fff" }}>Ask about your hormones</div><div style={{ fontSize: 13, color: "rgba(255,255,255,.85)" }}>Real answers, no TikTok myths.</div></div><ChevronRight size={22} color="#fff" /></Card>
+  </Sheet>);
+}
+
+/* ============================== HORMONES TAB ============================== */
+function HormonesScreen({ t, dark, profile, openCheck, onAddResults }) {
+  const hasCycle = profile?.sex === "Female";
+  const ci = useMemo(() => cycleInfo(profile), [profile]);
+  const list = useMemo(() => hormoneList(profile), [profile]);
+  const key = dark ? "cd" : "c";
+  const rhythm = [{ h: "6a", c: 30, m: 90 }, { h: "9a", c: 85, m: 20 }, { h: "12p", c: 60, m: 8 }, { h: "3p", c: 45, m: 6 }, { h: "6p", c: 30, m: 15 }, { h: "9p", c: 18, m: 55 }, { h: "12a", c: 12, m: 92 }];
+  const timeline = Array.from({ length: ci.len }, (_, i) => i + 1);
+
+  return (<Sheet>
+    <div style={{ paddingTop: 8, fontSize: 28, fontWeight: 750, color: t.ink, letterSpacing: "-.02em" }}>Your hormones</div>
+    <div style={{ fontSize: 14, color: t.sub, marginTop: 4, lineHeight: 1.5 }}>Tap any hormone for a 60-second scan.</div>
+
+    {/* Hormone cards — tap to check */}
+    <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+      {list.map((h, i) => (<Card key={h.key} t={t} onClick={() => openCheck(h.key)} style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <MiniRing value={h.level ?? 0} color={h.checked ? h[key] : t.line} track={t.line} delay={i * 70} size={54}><span style={{ fontSize: 15, fontWeight: 750, color: h.checked ? t.ink : t.faint }}>{h.level ?? "—"}</span></MiniRing>
+        <div style={{ flex: 1 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.ink }}>{h.name}</div><div style={{ fontSize: 13, color: t.sub, marginTop: 1 }}>{h.tag}</div></div>
+        <div style={{ textAlign: "right" }}><div style={{ fontSize: 13, fontWeight: 650, color: h.checked ? h[key] : t.faint }}>{h.status}</div><div style={{ fontSize: 11, color: h.checked ? t.sage : t.faint, fontWeight: 600, marginTop: 2 }}>{h.checked ? "Scanned" : "Tap to scan"}</div></div>
+        <ChevronRight size={18} color={t.faint} />
+      </Card>))}
+    </div>
+
+    {/* Add real bloodwork */}
+    <Card t={t} onClick={onAddResults} style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 13, borderStyle: "dashed" }}>
+      <div style={{ width: 42, height: 42, borderRadius: 13, background: t.sageSoft, display: "grid", placeItems: "center", flexShrink: 0 }}><Plus size={20} color={t.sage} /></div>
+      <div style={{ flex: 1 }}><div style={{ fontSize: 14.5, fontWeight: 700, color: t.ink }}>Already had a blood test?</div><div style={{ fontSize: 13, color: t.sub }}>Optional — SOMA estimates your hormones without one</div></div>
+      <ChevronRight size={20} color={t.faint} />
+    </Card>
+
+    {/* Cycle (women) or daily rhythm (others) */}
+    {hasCycle ? (<>
+      <Eyebrow t={t} right={<span style={{ fontSize: 13, fontWeight: 650, color: ci.phase[key] }}>Day {ci.day} · {ci.phase.name}</span>}>Estrogen across the month</Eyebrow>
+      <Card t={t}>
+        <div style={{ display: "flex", gap: 2.5, alignItems: "flex-end", height: 44 }}>{timeline.map((d) => { const pk = phaseForDay(d, ci.len); const today = d === ci.day; return <div key={d} style={{ flex: 1, height: today ? "100%" : "62%", borderRadius: 3, background: PHASES[pk][key], opacity: d <= ci.day ? 1 : 0.32, position: "relative" }}>{today && <span style={{ position: "absolute", top: -7, left: "50%", transform: "translateX(-50%)", width: 6, height: 6, borderRadius: 6, background: t.ink }} />}</div>; })}</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 14 }}>{Object.entries(PHASES).map(([k, p]) => <span key={k} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: t.sub, fontWeight: 600 }}><span style={{ width: 9, height: 9, borderRadius: 9, background: p[key] }} />{p.name}</span>)}</div>
+      </Card>
+    </>) : (<>
+      <Eyebrow t={t}>Your 24-hour rhythm</Eyebrow>
+      <Card t={t}><div style={{ height: 120 }}><ResponsiveContainer width="100%" height="100%"><AreaChart data={rhythm} margin={{ top: 6, right: 4, left: 4, bottom: 0 }}><defs><linearGradient id="cort" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={t.sage} stopOpacity={0.3} /><stop offset="100%" stopColor={t.sage} stopOpacity={0} /></linearGradient></defs><XAxis dataKey="h" tick={{ fontSize: 10, fill: t.sub }} axisLine={false} tickLine={false} /><YAxis hide domain={[0, 100]} /><Tooltip content={ScoreTooltip(t)} cursor={false} /><Area type="monotone" dataKey="c" stroke={t.sage} strokeWidth={2.4} fill="url(#cort)" /><Area type="monotone" dataKey="m" stroke={t.blue} strokeWidth={2.4} fill="none" strokeDasharray="4 4" /></AreaChart></ResponsiveContainer></div><div style={{ display: "flex", gap: 18, justifyContent: "center", marginTop: 8, fontSize: 12.5, color: t.sub }}><span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 10, height: 3, background: t.sage, borderRadius: 2 }} />Cortisol</span><span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 10, height: 3, background: t.blue, borderRadius: 2 }} />Melatonin</span></div></Card>
+    </>)}
+
+    {/* Log today */}
+    <Card t={t} style={{ marginTop: 20, display: "flex", gap: 12, alignItems: "flex-start" }}><div style={{ width: 38, height: 38, borderRadius: 12, background: t.sageSoft, display: "grid", placeItems: "center", flexShrink: 0 }}><ShieldCheck size={19} color={t.sage} /></div><p style={{ margin: 0, fontSize: 13.5, color: t.sub, lineHeight: 1.5 }}>SOMA estimates these from your cycle, sleep, stress and symptoms — no blood test needed. Adding real labs is optional, just for extra precision. Educational, not a diagnosis.</p></Card>
+  </Sheet>);
+}
+
+/* ============================== COACH ============================== */
+// Local fallback: answers from the user's own hormone data when the API is unreachable.
+function coachAnswer(profile, q) {
+  const lower = q.toLowerCase();
+  const map = [
+    ["cortisol", ["cortisol", "stress", "wired", "belly", "anxious"]],
+    ["testosterone", ["testosterone", "libido", "muscle", "sex drive", "drive"]],
+    ["estrogen", ["estrogen", "oestrogen", "period", "pms", "cycle", "menstru"]],
+    ["insulin", ["insulin", "blood sugar", "sugar", "craving", "acne", "breakout", "skin"]],
+    ["dopamine", ["dopamine", "motivation", "focus", "scroll", "procrast"]],
+    ["melatonin", ["melatonin", "sleep", "insomnia", "fall asleep"]],
+  ];
+  const list = hormoneList(profile);
+  const tail = " (Educational, not a diagnosis — a blood test is the only way to know real levels.)";
+  const found = map.find(([k, ws]) => ws.some((w) => lower.includes(w)));
+  if (found) {
+    const k = found[0]; const H = HORMONES[k]; const h = list.find((x) => x.key === k) || {};
+    const levers = H.levers.map((l) => l.t.toLowerCase()).join(", ");
+    if (h.checked) {
+      const off = h.level < 76;
+      return `From your check, your ${H.name.toLowerCase()} looks ${h.status.toLowerCase()} (${h.level}/100). ${off ? H.fact : H.role} What helps most: ${levers}.` + tail;
+    }
+    return `You haven't run your ${H.name.toLowerCase()} scan yet — tap "Scan your ${H.name}" on the Hormones tab and I'll read it back for you. In short: ${H.role} What moves it: ${levers}.` + tail;
+  }
+  if (/(food|eat|diet|nutrition|balance)/.test(lower))
+    return "For steadier hormones, build meals around protein and fibre, choose whole foods over ultra-processed, and pair carbs with protein so your blood sugar doesn't spike and crash. Sleep, morning light and a short walk after meals do more than any supplement." + tail;
+  return "Tell me which hormone you're curious about — cortisol, testosterone, estrogen, insulin, dopamine or melatonin — or run its scan and I'll read it back for you. In general, sleep, morning light, protein and managing stress move nearly all of them." + tail;
+}
+
+function CoachScreen({ t, dark, profile }) {
+  const ci = useMemo(() => cycleInfo(profile), [profile]); const hasCycle = profile?.sex === "Female";
+  const sys = "You are SOMA, a calm, premium AI coach focused on hormone health — the credible voice that cuts through TikTok/Instagram hype. People come to you about cortisol, estrogen, testosterone, insulin, dopamine and how food, sleep, stress and appearance (skin, energy, bloating) connect to them. "
+    + (hasCycle ? `The user is on day ${ci.day} of an approx ${ci.len}-day cycle, in the ${ci.phase.name} phase (${ci.phase.hormone}). Use this when relevant. ` : "The user tracks a daily hormonal rhythm (cortisol/testosterone peak in the morning, melatonin at night). ")
+    + "Style: warm, concise (2-4 short paragraphs), plain language, no jargon dumps, no emojis. When a viral claim comes up, name the myth and give the real, evidence-based picture — food-and-lifestyle first, never fear-mongering. Do NOT give calorie targets, promote weight loss, restriction, or body shaming; keep nutrition about food quality and habits. You are educational only: never diagnose or prescribe, and refer to a clinician for medical concerns, very irregular cycles, suspected conditions, or anything needing bloodwork.";
+  const suggested = hasCycle
+    ? ["Do I have high cortisol?", "How do I lower cortisol naturally?", "What foods balance my hormones?", "Is my diet causing hormonal acne?", "Why does my skin change with my cycle?"]
+    : ["How do I support testosterone naturally?", "How do I lower cortisol?", "What foods keep my energy steady?", "Is a dopamine detox real?", "How do I sleep more deeply?"];
+  const [msgs, setMsgs] = useState([]); const [input, setInput] = useState(""); const [busy, setBusy] = useState(false);
+  const endRef = useRef(null); useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, busy]);
+  const send = async (text) => { const q = (text ?? input).trim(); if (!q || busy) return; const next = [...msgs, { role: "user", content: q }]; setMsgs(next); setInput(""); setBusy(true);
+    let reply = "";
+    try {
+      const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 12000);
+      const res = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json" }, signal: ctrl.signal, body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1024, system: sys, messages: next.map((m) => ({ role: m.role, content: m.content })) }) });
+      clearTimeout(to); const data = await res.json();
+      reply = (data.content || []).filter((c) => c.type === "text").map((c) => c.text).join("\n").trim();
+    } catch (e) { reply = ""; }
+    if (!reply) reply = coachAnswer(profile, q);
+    setMsgs((m) => [...m, { role: "assistant", content: reply }]); setBusy(false); };
+  const empty = msgs.length === 0;
+  return (<div style={{ display: "flex", flexDirection: "column", height: "100%", fontFamily: FONT }}>
+    <div style={{ padding: "10px 18px 12px", borderBottom: `1px solid ${t.line}`, display: "flex", alignItems: "center", gap: 11 }}><div style={{ width: 34, height: 34, borderRadius: 11, background: `linear-gradient(150deg, ${t.sage}, ${t.blue})`, display: "grid", placeItems: "center" }}><SomaRing size={22} /></div><div><div style={{ fontSize: 16, fontWeight: 700, color: t.ink }}>SOMA Coach</div><div style={{ fontSize: 12, color: t.sage, fontWeight: 600 }}>The science behind the trends</div></div></div>
+    <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px" }}>
+      {empty ? (<div style={{ paddingTop: 16 }}><div style={{ width: 56, height: 56, borderRadius: 18, margin: "0 auto 14px", background: `linear-gradient(150deg, ${t.sage}, ${t.blue})`, display: "grid", placeItems: "center" }}><SomaRing size={30} /></div><div style={{ textAlign: "center", fontSize: 20, fontWeight: 700, color: t.ink }}>How can I help, {profile?.name || "there"}?</div><div style={{ textAlign: "center", fontSize: 14, color: t.sub, margin: "6px 12px 22px", lineHeight: 1.5 }}>Ask me anything about your hormones — I'll give you the real answer.</div><div style={{ display: "grid", gap: 10 }}>{suggested.map((s) => <button key={s} onClick={() => send(s)} style={{ textAlign: "left", padding: "14px 16px", borderRadius: 16, border: `1px solid ${t.line}`, background: t.card, color: t.ink, fontFamily: FONT, fontSize: 14.5, fontWeight: 550, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: t.shadow }}>{s} <ChevronRight size={17} color={t.faint} /></button>)}</div></div>)
+        : (<div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{msgs.map((m, k) => <div key={k} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "84%" }}><div style={{ padding: "12px 15px", borderRadius: 19, fontSize: 14.5, lineHeight: 1.55, whiteSpace: "pre-wrap", background: m.role === "user" ? t.ink : t.card, color: m.role === "user" ? t.bg : t.ink, border: m.role === "user" ? "none" : `1px solid ${t.line}`, boxShadow: m.role === "user" ? "none" : t.shadow, borderBottomRightRadius: m.role === "user" ? 6 : 19, borderBottomLeftRadius: m.role === "user" ? 19 : 6 }}>{m.content}</div></div>)}{busy && <div style={{ alignSelf: "flex-start", padding: "14px 16px", borderRadius: 19, background: t.card, border: `1px solid ${t.line}`, display: "flex", gap: 5 }}>{[0, 1, 2].map((k) => <span key={k} style={{ width: 7, height: 7, borderRadius: 7, background: t.faint, animation: `bounce 1.2s ${k * 0.15}s infinite` }} />)}</div>}<div ref={endRef} /></div>)}
+    </div>
+    <div style={{ padding: "10px 14px", borderTop: `1px solid ${t.line}`, background: t.bg }}><div style={{ display: "flex", gap: 9, alignItems: "flex-end" }}><input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} placeholder="Ask SOMA…" style={{ flex: 1, fontFamily: FONT, fontSize: 15, padding: "13px 16px", borderRadius: 22, border: `1px solid ${t.line}`, background: t.card, color: t.ink, outline: "none" }} /><button onClick={() => send()} disabled={!input.trim() || busy} style={{ width: 46, height: 46, borderRadius: 23, border: "none", flexShrink: 0, cursor: input.trim() ? "pointer" : "default", background: input.trim() ? t.sage : t.line, display: "grid", placeItems: "center" }}><Send size={19} color={input.trim() ? "#fff" : t.faint} /></button></div></div>
+  </div>);
+}
+
+/* ============================== LEARN ============================== */
+const CATS = ["Trending", "Cortisol", "Sleep", "Skin", "Energy", "Cycle"];
+const TRENDING = [
+  { cat: "Trending", title: "Is \u201Ccortisol face\u201D real?", read: "2 min", blurb: "Mostly no \u2014 what the puffiness actually is.", body: [
+    "The claim: chronic stress raises cortisol, and cortisol makes your face round and puffy \u2014 so a supplement or \u201Ccortisol detox\u201D will give you a sharper jawline.",
+    "The reality: true cortisol-driven facial changes happen in a rare medical condition (Cushing's syndrome) \u2014 and that needs a doctor, not a powder. For everyone else, a puffy morning face is mostly water retention: salty food late at night, alcohol, poor sleep, or just lying flat for eight hours.",
+    "What actually helps: consistent sleep, less alcohol and late-night salt, and moving in the morning. The puffiness that TikTok calls \u201Ccortisol face\u201D usually fades by mid-morning on its own \u2014 no product required.",
+  ]},
+  { cat: "Trending", title: "Seed oils: villain or hype?", read: "3 min", blurb: "What studies really say. No fear-mongering.", body: [
+    "The claim: seed oils (sunflower, canola, soybean) are \u201Ctoxic\u201D, drive inflammation and are behind modern disease.",
+    "The reality: large reviews don't support the panic. Replacing saturated fat with these oils tends to improve cholesterol, and controlled studies don't show the inflammation spike the trend claims. What IS true: seed oils ride along in a lot of ultra-processed food \u2014 and eating lots of ultra-processed food is genuinely linked to worse health.",
+    "The practical takeaway: the problem is the fries, not the sunflower oil in your kitchen. Cook mostly whole foods, use olive oil if you like it, and don't fear a normal amount of seed oil \u2014 there are far bigger hormone levers: sleep, protein, movement.",
+  ]},
+  { cat: "Trending", title: "Does a dopamine detox work?", read: "2 min", blurb: "You can't reset it in a day. Do this instead.", body: [
+    "The claim: quit all pleasure for 24\u201348 hours \u2014 no phone, no sugar, no music \u2014 and your dopamine \u201Cresets\u201D, bringing back motivation.",
+    "The reality: dopamine isn't a tank that empties or refills. What actually gets blunted by constant quick hits (endless scrolling, back-to-back stimulation) is your sensitivity to reward \u2014 and one dramatic day off doesn't rebuild that.",
+    "What works instead is boring and effective: sleep, morning light, daily movement, and structurally fewer quick hits \u2014 phone out of the bedroom, one thing at a time, real breaks without a screen. Sensitivity comes back gradually over weeks, not in a weekend.",
+  ]},
+];
+const ARTICLES = [
+  { cat: "Cortisol", title: "Lower cortisol before bed", read: "2 min", blurb: "3 things that calm your stress hormone by tonight.", body: [
+    "Cortisol is supposed to fall in the evening. If yours stays up \u2014 racing mind, tense shoulders, \u201Cwired but tired\u201D \u2014 three things move it tonight.",
+    "One: dim the lights an hour before bed. Bright overhead light keeps your stress axis in day mode. Two: put a hard stop on work input \u2014 every email you read restarts the loop you're trying to close. Three: slow your exhale. Five minutes of breathing out longer than you breathe in (try 4 in, 8 out) is one of the fastest measurable ways to downshift.",
+    "None of this is a hack \u2014 it's removing the signals that tell your body it's still noon. Educational, not a diagnosis.",
+  ]},
+  { cat: "Sleep", title: "Fall asleep faster tonight", read: "2 min", blurb: "The one hour before bed that changes everything.", body: [
+    "Melatonin rises when light falls. The single biggest reason people lie awake is simple: their evening looks like daytime to their brain.",
+    "The last hour is the lever. Screens dimmed or off, overhead lights swapped for a lamp, bedroom cool and dark. Caffeine matters more than you think \u2014 half of your 2pm coffee is still circulating at 8pm. And a consistent bedtime beats a perfect one: your body loves rhythm more than rules.",
+    "If you do one thing: pick a wind-down trigger (same tea, same playlist, same dim light) and repeat it nightly. After a week your body starts sleeping on cue.",
+  ]},
+  { cat: "Skin", title: "The hormone behind your breakouts", read: "3 min", blurb: "Cortisol, insulin or your cycle \u2014 spot which.", body: [
+    "Not all breakouts have the same driver \u2014 and the pattern tells you a lot.",
+    "Jaw and chin, worse in the week before your period: that's the cyclical hormone shift, and it usually eases as estrogen rises again. Breakouts after stressful stretches with poor sleep point at cortisol. Breakouts that track with sugary, spiky eating days point at insulin \u2014 the spike-and-crash pattern raises oil production for some people.",
+    "The common ground: steady blood sugar (protein and fibre first), real sleep, and patience \u2014 skin runs about four weeks behind your habits. If acne is painful, deep or scarring, see a dermatologist; that's beyond lifestyle. Educational, not a diagnosis.",
+  ]},
+  { cat: "Energy", title: "Kill the 3pm crash", read: "2 min", blurb: "Eat in this order and skip the slump.", body: [
+    "The 3pm slump is usually your lunch talking. A fast-carb-heavy meal spikes blood sugar, insulin overshoots, and ninety minutes later you're foggy and hunting for sugar.",
+    "The fix is order, not restriction: eat protein and vegetables first, carbs after. Same food, flatter curve. Add a ten-minute walk after eating \u2014 your muscles soak up glucose and blunt the spike further.",
+    "If afternoons are still heavy: check your caffeine timing (late coffee wrecks the night that powers the next day) and whether you actually ate enough at lunch \u2014 undereating crashes energy just as hard as sugar does.",
+  ]},
+  { cat: "Cortisol", title: "Wired but tired? Read this", read: "2 min", blurb: "Why you can't switch off \u2014 and the fix.", body: [
+    "\u201CWired but tired\u201D is the signature of an evening cortisol that never landed: exhausted body, racing head.",
+    "It's usually built during the day \u2014 caffeine after 2pm, no real breaks, skipped meals (low blood sugar is a stress signal), then bright light and stimulation right up to bed.",
+    "Unwind it at both ends: front-load caffeine and food earlier, take two genuine pauses during the day, and give the evening a descent \u2014 dim light, slow exhale, no new input. It typically takes a few consistent days, not one perfect night.",
+  ]},
+  { cat: "Energy", title: "Morning light = better everything", read: "2 min", blurb: "10 minutes that set your whole day.", body: [
+    "Ten minutes of outdoor light in the first hour after waking is the cheapest hormone intervention there is.",
+    "It anchors your circadian clock: cortisol peaks properly in the morning (energy, focus), which lets melatonin rise properly at night (sleep). Through a window doesn't count for much \u2014 glass cuts the intensity your clock needs. Cloudy still works; outdoor light is far brighter than it looks.",
+    "Stack it: coffee on the balcony, walk to the bakery, sit outside with your phone if you must. Consistency beats duration.",
+  ]},
+  { cat: "Skin", title: "Clear skin starts with blood sugar", read: "3 min", blurb: "One tiny food swap for fewer breakouts.", body: [
+    "High-glycemic eating \u2014 big spikes and crashes \u2014 nudges up insulin, and for many people that means more oil production and more breakouts.",
+    "The tiny swap: don't eat fast carbs naked. Pair them \u2014 fruit with yogurt, bread with eggs, pasta with protein and vegetables. The carb stays, the spike shrinks.",
+    "Give it four weeks before judging \u2014 skin lags behind habits. And if breakouts are severe or scarring, a dermatologist beats any diet change. Educational, not a diagnosis.",
+  ]},
+  { cat: "Sleep", title: "Your 2pm coffee is still awake at 10pm", read: "2 min", blurb: "Caffeine's sneaky half-life, explained.", body: [
+    "Caffeine's half-life is roughly five to six hours. A 2pm coffee means half the caffeine is still in your system around 8pm \u2014 and a quarter near midnight.",
+    "You might still fall asleep \u2014 caffeine is sneakier than that. It shallows sleep: less deep sleep, more micro-wakings, and a morning that needs\u2026 more coffee. That's the loop.",
+    "Try a two-week experiment: last caffeine before 12. Most people notice deeper sleep within days \u2014 and ironically need less caffeine because of it.",
+  ]},
+  { cat: "Cycle", title: "Your cycle in 60 seconds", read: "2 min", blurb: "The 4 phases and how each one feels.", body: [
+    "Menstrual (days ~1\u20135): hormones at their lowest. Energy is low by design \u2014 rest is productive here.",
+    "Follicular (until ovulation): estrogen climbs, and with it energy, mood, focus and skin. The natural week to start things and train hard. Ovulation (~2 days): the peak \u2014 estrogen tops out with a lift from testosterone. Strongest, most confident days of the month.",
+    "Luteal (the ~2 weeks after): progesterone rises, then both fall before your period. Energy tapers, sleep lightens, and the last days can bring PMS \u2014 that's hormones, not you. Steady movement and earlier nights carry you through. Every body differs; this is the common pattern, not a rule.",
+  ]},
+];
+function LearnScreen({ t, dark, openArticle }) {
+  const [cat, setCat] = useState("Trending"); const [q, setQ] = useState("");
+  const filtered = ARTICLES.filter((a) => (cat === "Trending" || cat === a.cat) && (q === "" || (a.title + a.blurb + a.cat).toLowerCase().includes(q.toLowerCase())));
+  return (<Sheet>
+    <div style={{ paddingTop: 8, fontSize: 28, fontWeight: 750, color: t.ink, letterSpacing: "-.02em" }}>Learn</div>
+    <div style={{ position: "relative", marginTop: 14 }}><Search size={18} color={t.faint} style={{ position: "absolute", left: 15, top: 14 }} /><input value={q} onChange={(e) => { setQ(e.target.value); if (e.target.value) setCat("all"); }} placeholder="Search cortisol, acne, sleep…" style={{ width: "100%", boxSizing: "border-box", fontFamily: FONT, fontSize: 15, padding: "13px 16px 13px 44px", borderRadius: 15, border: `1px solid ${t.line}`, background: t.card, color: t.ink, outline: "none" }} /></div>
+    <div style={{ display: "flex", gap: 8, overflowX: "auto", margin: "14px -18px 4px", padding: "0 18px", scrollbarWidth: "none" }}>{CATS.map((c) => <button key={c} onClick={() => { setCat(c); setQ(""); }} style={{ whiteSpace: "nowrap", padding: "8px 15px", borderRadius: 20, border: `1px solid ${cat === c ? t.ink : t.line}`, cursor: "pointer", background: cat === c ? t.ink : t.card, color: cat === c ? t.bg : t.sub, fontFamily: FONT, fontSize: 13.5, fontWeight: 650, transition: "all .18s" }}>{c}</button>)}</div>
+
+    {cat === "Trending" && q === "" && (<>
+      <Card t={t} pad={0} style={{ overflow: "hidden", marginTop: 14, background: `linear-gradient(140deg, ${t.sage}, ${t.blue})`, border: "none" }}><div style={{ padding: 22 }}><span style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".08em", color: "rgba(255,255,255,.85)" }}>Trust, not hype</span><div style={{ fontSize: 21, fontWeight: 750, color: "#fff", margin: "8px 0 6px", lineHeight: 1.25 }}>Your feed, fact-checked</div><div style={{ fontSize: 14, color: "rgba(255,255,255,.9)", lineHeight: 1.5 }}>Viral hormone claims, sorted into true, false, and it depends.</div></div></Card>
+      <div style={{ display: "grid", gap: 12, marginTop: 14 }}>{TRENDING.map((a, k) => <Card t={t} key={k} pad={16} onClick={() => openArticle(a)} style={{ display: "flex", gap: 14, alignItems: "flex-start", cursor: "pointer" }}><div style={{ width: 44, height: 44, borderRadius: 14, flexShrink: 0, background: dark ? t.card2 : t.sageSoft, display: "grid", placeItems: "center" }}><Flame size={20} color="#E08A46" /></div><div style={{ flex: 1 }}><div style={{ fontSize: 15, fontWeight: 700, color: t.ink, lineHeight: 1.3 }}>{a.title}</div><div style={{ fontSize: 13, color: t.sub, lineHeight: 1.45, margin: "4px 0" }}>{a.blurb}</div><span style={{ fontSize: 11.5, color: t.faint }}>{a.read}</span></div></Card>)}</div>
+    </>)}
+
+    <div style={{ display: "grid", gap: 12, marginTop: 16 }}>{filtered.map((a, k) => <Card t={t} key={k} pad={16} onClick={() => openArticle(a)} style={{ display: "flex", gap: 14, alignItems: "flex-start", cursor: "pointer" }}><div style={{ width: 52, height: 52, borderRadius: 15, flexShrink: 0, background: dark ? t.card2 : t.sageSoft, display: "grid", placeItems: "center" }}><BookOpen size={22} color={t.sage} /></div><div style={{ flex: 1 }}><div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}><span style={{ fontSize: 11.5, fontWeight: 700, color: t.sage, letterSpacing: ".03em" }}>{a.cat.toUpperCase()}</span><span style={{ fontSize: 11.5, color: t.faint }}>· {a.read}</span></div><div style={{ fontSize: 15, fontWeight: 700, color: t.ink, lineHeight: 1.3, marginBottom: 4 }}>{a.title}</div><div style={{ fontSize: 13, color: t.sub, lineHeight: 1.45 }}>{a.blurb}</div></div></Card>)}{filtered.length === 0 && <div style={{ textAlign: "center", padding: "40px 0", color: t.sub }}><Search size={30} color={t.faint} style={{ marginBottom: 10 }} /><div style={{ fontSize: 15, fontWeight: 600, color: t.ink }}>Nothing here yet</div><div style={{ fontSize: 13.5, marginTop: 4 }}>Try another word or category.</div></div>}</div>
+  </Sheet>);
+}
+
+/* ============================== PROFILE ============================== */
+function Toggle({ t, on, set }) { return <button onClick={() => set(!on)} style={{ width: 48, height: 29, borderRadius: 15, border: "none", cursor: "pointer", background: on ? t.sage : t.line, position: "relative", transition: "background .25s", flexShrink: 0 }}><span style={{ position: "absolute", top: 3, left: on ? 22 : 3, width: 23, height: 23, borderRadius: 12, background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.25)", transition: "left .25s cubic-bezier(.4,1.3,.6,1)" }} /></button>; }
+function Row({ t, Icon, label, right, onClick }) { return <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 13, padding: "14px 4px", cursor: onClick ? "pointer" : "default" }}><div style={{ width: 32, height: 32, borderRadius: 10, background: t.card2, display: "grid", placeItems: "center", flexShrink: 0 }}><Icon size={17} color={t.sub} /></div><span style={{ flex: 1, fontSize: 15, fontWeight: 550, color: t.ink }}>{label}</span>{right}{onClick && !right && <ChevronRight size={18} color={t.faint} />}</div>; }
+function ArticleSheet({ t, dark, article, onClose, goCoach }) {
+  return (<div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", zIndex: 60, animation: "fade .25s ease" }}>
+    <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxHeight: "90%", overflowY: "auto", background: t.bg, borderRadius: "26px 26px 0 0", padding: "16px 22px 30px", animation: "slideUp .3s cubic-bezier(.22,1,.36,1)" }}>
+      <div style={{ width: 38, height: 5, borderRadius: 3, background: t.line, margin: "0 auto 16px" }} />
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: t.sage, letterSpacing: ".05em" }}>{article.cat.toUpperCase()}</span>
+        <span style={{ fontSize: 11.5, color: t.faint }}>\u00b7 {article.read}</span>
+      </div>
+      <div style={{ fontSize: 23, fontWeight: 750, color: t.ink, lineHeight: 1.25, letterSpacing: "-.01em", marginBottom: 14 }}>{article.title}</div>
+      {article.body.map((p, i) => <p key={i} style={{ fontSize: 15, color: t.ink, lineHeight: 1.62, margin: "0 0 14px", opacity: i === 0 ? 1 : 0.92 }}>{p}</p>)}
+      <button onClick={() => { onClose(); goCoach(); }} style={{ width: "100%", padding: 14, marginTop: 6, borderRadius: 15, border: "none", background: t.ink, color: t.bg, fontFamily: FONT, fontSize: 15, fontWeight: 700, cursor: "pointer" }}>Ask the coach about this</button>
+      <button onClick={onClose} style={{ width: "100%", padding: 12, marginTop: 6, borderRadius: 15, border: "none", background: "transparent", color: t.sub, fontFamily: FONT, fontSize: 14.5, fontWeight: 600, cursor: "pointer" }}>Close</button>
+    </div>
+  </div>);
+}
+function ProfileScreen({ t, dark, setDark, profile, connected, onConnect, premium, onPaywall }) {
+  const [notif, setNotif] = useState(true); const [smart, setSmart] = useState(true);
+  const ci = useMemo(() => cycleInfo(profile), [profile]); const hasCycle = profile?.sex === "Female";
+  const wearables = [{ name: "Apple Health", Icon: Heart, on: connected }, { name: "Oura Ring", Icon: Sun, on: false }, { name: "WHOOP", Icon: Activity, on: false }];
+  return (<Sheet>
+    <div style={{ paddingTop: 8, fontSize: 28, fontWeight: 750, color: t.ink, letterSpacing: "-.02em" }}>Profile</div>
+    <Card t={t} style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 15 }}><div style={{ width: 60, height: 60, borderRadius: 30, background: `linear-gradient(150deg, ${t.sage}, ${t.blue})`, display: "grid", placeItems: "center", flexShrink: 0 }}><span style={{ fontSize: 24, fontWeight: 700, color: "#fff" }}>{(profile?.name || "S")[0].toUpperCase()}</span></div><div style={{ flex: 1 }}><div style={{ fontSize: 19, fontWeight: 700, color: t.ink }}>{profile?.name || "Your name"}</div><div style={{ fontSize: 13.5, color: t.sub, marginTop: 2 }}>{profile?.age || 29} · {profile?.sex || "—"} · {profile?.activity || "Moderate"}</div></div></Card>
+
+    {hasCycle && <Card t={t} style={{ marginTop: 12 }}><div style={{ fontSize: 12.5, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em", color: t.sub, marginBottom: 10 }}>Cycle settings</div>{[["Cycle length", `${ci.len} days`], ["Last period", `${profile?.daysSince ?? 8} days ago`], ["Regularity", profile?.regular || "Regular"]].map(([l, v], idx, arr) => <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "11px 0", borderBottom: idx < arr.length - 1 ? `1px solid ${t.line}` : "none" }}><span style={{ fontSize: 14.5, color: t.ink, fontWeight: 550 }}>{l}</span><span style={{ fontSize: 14, color: t.sub }}>{v}</span></div>)}</Card>}
+
+    <Card t={t} style={{ marginTop: 12, background: `linear-gradient(135deg, ${t.ink}, ${dark ? "#2A2D33" : "#3A3D44"})`, border: "none" }}><div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}><Crown size={20} color="#E7B569" /><span style={{ fontSize: 17, fontWeight: 750, color: "#fff" }}>SOMA Premium</span></div><div style={{ fontSize: 13, color: "rgba(255,255,255,.75)", margin: "-4px 0 14px", lineHeight: 1.5 }}>Free: one scan of each hormone. Premium: track them over time + your plan.</div><div style={{ display: "grid", gap: 9, marginBottom: 16 }}>{["Track your hormones over time", "Re-scan anytime", "Your personal hormone plan", "Blood test insights", "Unlimited AI coach", "Apple Health sync"].map((f) => <div key={f} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 14, color: "rgba(255,255,255,.92)" }}><Check size={16} color={t.sage} strokeWidth={2.5} /> {f}</div>)}</div>{premium ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: 14, borderRadius: 14, background: "rgba(255,255,255,.12)", color: "#fff", fontSize: 15, fontWeight: 700 }}><Check size={17} color={t.sage} strokeWidth={3} /> Premium active</div> : <button onClick={onPaywall} style={{ width: "100%", padding: 14, borderRadius: 14, border: "none", background: "#fff", color: "#1A1B1D", fontFamily: FONT, fontSize: 15, fontWeight: 700, cursor: "pointer" }}>Go Premium · $12/mo</button>}</Card>
+
+    <Eyebrow t={t}>Connected sources</Eyebrow>
+    <Card t={t} pad={6}>{wearables.map((w, idx) => <div key={w.name} style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 12px", borderBottom: idx < wearables.length - 1 ? `1px solid ${t.line}` : "none" }}><div style={{ width: 34, height: 34, borderRadius: 11, background: t.card2, display: "grid", placeItems: "center" }}><w.Icon size={18} color={t.sub} /></div><span style={{ flex: 1, fontSize: 15, fontWeight: 550, color: t.ink }}>{w.name}</span>{w.on ? <span style={{ fontSize: 12.5, fontWeight: 650, color: t.sage, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 7, height: 7, borderRadius: 7, background: t.sage }} />Connected</span> : <button onClick={w.name === "Apple Health" ? onConnect : undefined} style={{ fontSize: 13, fontWeight: 650, color: t.ink, background: t.card2, border: "none", padding: "7px 14px", borderRadius: 11, cursor: "pointer", fontFamily: FONT }}>Connect</button>}</div>)}</Card>
+
+    <Eyebrow t={t}>Preferences</Eyebrow>
+    <Card t={t} pad={6}><div style={{ padding: "0 8px" }}><Row t={t} Icon={dark ? Moon : Sun} label="Dark mode" right={<Toggle t={t} on={dark} set={setDark} />} /><div style={{ height: 1, background: t.line }} /><Row t={t} Icon={Bell} label="Notifications" right={<Toggle t={t} on={notif} set={setNotif} />} /><div style={{ height: 1, background: t.line }} /><Row t={t} Icon={Clock} label="Smart reminders" right={<Toggle t={t} on={smart} set={setSmart} />} /></div></Card>
+
+    <Eyebrow t={t}>Account</Eyebrow>
+    <Card t={t} pad={6}><div style={{ padding: "0 8px" }}><Row t={t} Icon={User} label="Personal information" onClick={() => {}} /><div style={{ height: 1, background: t.line }} /><Row t={t} Icon={ShieldCheck} label="Privacy & data" onClick={() => {}} /><div style={{ height: 1, background: t.line }} /><Row t={t} Icon={Settings} label="Settings" onClick={() => {}} /></div></Card>
+
+    <div style={{ textAlign: "center", marginTop: 26, padding: "0 20px" }}><div style={{ fontSize: 11.5, color: t.faint, lineHeight: 1.5 }}>SOMA is educational and does not diagnose or treat medical conditions. Hormone readings are estimates, not lab results. For medical concerns, consult a licensed clinician.</div><div style={{ fontSize: 12, color: t.faint, marginTop: 10, fontWeight: 600 }}>SOMA · v1.2</div></div>
+  </Sheet>);
+}
+
+/* ============================== RESULTS INTAKE ============================== *
+ * How a user provides their own hormone/blood results: connect Apple Health, or
+ * enter values manually. SOMA shows each against a typical range — educational,
+ * clearly not a diagnosis.                                                     */
+function CheckSheet({ t, dark, hKey, onClose, onSave, goCoach, onShare, premium, onPaywall }) {
+  const h = HORMONES[hKey]; const deck = CHECK_DECKS[hKey]; const key = dark ? "cd" : "c"; const accent = h[key];
+  const total = deck.cards.length;
+  const [idx, setIdx] = useState(0); const [phase, setPhase] = useState("deck");
+  const acc = useRef({ w: 0, c: 0 }); const drag = useRef(null); const cardRef = useRef(null);
+  const setStamp = (dx) => { const el = cardRef.current; if (!el) return; const y = el.querySelector("[data-yes]"); const n = el.querySelector("[data-no]"); if (y) y.style.opacity = dx > 0 ? Math.min(1, dx / 90) : 0; if (n) n.style.opacity = dx < 0 ? Math.min(1, -dx / 90) : 0; };
+  const fling = (dir) => { const el = cardRef.current; if (el) { const off = dir === "yes" ? 640 : -640; el.style.transition = "transform .4s ease, opacity .4s ease"; el.style.transform = `translate(${off}px,30px) rotate(${off * 0.05}deg)`; el.style.opacity = 0; } if (dir === "yes") { acc.current.w += deck.cards[idx].w; acc.current.c += 1; } const next = idx + 1; setTimeout(() => { if (next >= total) setPhase("result"); else setIdx(next); }, 170); };
+  const onDown = (e) => { const el = cardRef.current; if (!el) return; drag.current = { x: e.clientX }; el.style.transition = "none"; try { el.setPointerCapture(e.pointerId); } catch (x) {} };
+  const onMove = (e) => { if (!drag.current) return; const dx = e.clientX - drag.current.x; const el = cardRef.current; if (el) el.style.transform = `translate(${dx}px,0) rotate(${dx * 0.06}deg)`; setStamp(dx); };
+  const onUp = (e) => { if (!drag.current) return; const dx = e.clientX - drag.current.x; const el = cardRef.current; if (el) el.style.transition = "transform .35s cubic-bezier(.22,1,.36,1)"; drag.current = null; if (dx > 90) fling("yes"); else if (dx < -90) fling("no"); else if (el) { el.style.transform = ""; setStamp(0); } };
+  const reset = () => { acc.current = { w: 0, c: 0 }; setIdx(0); setPhase("deck"); };
+
+  const level = Math.max(28, Math.min(92, 88 - acc.current.w)); const off = level < 76;
+  const card = deck.cards[idx]; const peek = deck.cards[idx + 1];
+  const stamp = { position: "absolute", top: 20, padding: "6px 12px", borderRadius: 11, fontSize: 14, fontWeight: 800, letterSpacing: ".04em", border: "3px solid", opacity: 0, pointerEvents: "none" };
+
+  return (<div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", zIndex: 70, animation: "fade .25s ease" }}>
+    <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxHeight: "94%", background: t.bg, borderRadius: "26px 26px 0 0", padding: "14px 20px 26px", animation: "slideUp .3s cubic-bezier(.22,1,.36,1)", display: "flex", flexDirection: "column" }}>
+      <div style={{ width: 38, height: 5, borderRadius: 3, background: t.line, margin: "0 auto 14px" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 14 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 13, background: dark ? h.softD : h.soft, display: "grid", placeItems: "center" }}><Droplet size={20} color={accent} /></div>
+        <div style={{ flex: 1 }}><div style={{ fontSize: 17, fontWeight: 750, color: t.ink }}>Scan your {h.name}</div><div style={{ fontSize: 12.5, color: t.sub }}>{h.tag}</div></div>
+        <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 15, border: "none", background: t.card2, display: "grid", placeItems: "center", cursor: "pointer" }}><X size={16} color={t.sub} /></button>
+      </div>
+
+      {phase === "deck" ? (<>
+        <div style={{ height: 4, borderRadius: 3, background: t.line, overflow: "hidden", marginBottom: 8 }}><div style={{ width: `${(idx / total) * 100}%`, height: "100%", background: accent, transition: "width .3s" }} /></div>
+        <div style={{ fontSize: 12.5, color: t.sub, fontWeight: 600, textAlign: "center", marginBottom: 14 }}>Question {idx + 1} of {total}</div>
+        <div style={{ position: "relative", height: 300, marginBottom: 6 }}>
+          {peek && (<div style={{ position: "absolute", inset: 0, background: t.card, border: `1px solid ${t.line}`, borderRadius: 26, transform: "scale(.94) translateY(14px)", opacity: .6 }} />)}
+          <div key={idx} ref={cardRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} style={{ position: "absolute", inset: 0, background: t.card, border: `1px solid ${t.line}`, borderRadius: 26, boxShadow: t.shadow, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "30px 26px", touchAction: "none", cursor: "grab" }}>
+            <span data-no style={{ ...stamp, left: 22, color: "#D98A8A", borderColor: "#D98A8A", transform: "rotate(-12deg)" }}>NOPE</span>
+            <span data-yes style={{ ...stamp, right: 22, color: accent, borderColor: accent, transform: "rotate(12deg)" }}>YEP</span>
+            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase", color: accent, marginBottom: 18 }}>{h.name}</div>
+            <div style={{ fontSize: 40, marginBottom: 18 }}>{card.e}</div>
+            <div style={{ fontSize: 23, fontWeight: 750, color: t.ink, lineHeight: 1.28, letterSpacing: "-.01em" }}>{card.q}</div>
+          </div>
+        </div>
+        <div style={{ fontSize: 11.5, color: t.faint, fontWeight: 600, textAlign: "center", margin: "6px 0" }}>Doesn't apply&nbsp;&nbsp;·&nbsp;&nbsp;Applies to me</div>
+        <div style={{ display: "flex", justifyContent: "center", gap: 24, paddingBottom: 4 }}>
+          <button onClick={() => fling("no")} style={{ width: 60, height: 60, borderRadius: 32, border: `1px solid ${t.line}`, background: t.card, boxShadow: t.shadow, display: "grid", placeItems: "center", cursor: "pointer", color: "#D98A8A", fontSize: 24 }}><X size={26} /></button>
+          <button onClick={() => fling("yes")} style={{ width: 60, height: 60, borderRadius: 32, border: `1px solid ${t.line}`, background: t.card, boxShadow: t.shadow, display: "grid", placeItems: "center", cursor: "pointer", color: accent }}><Check size={26} /></button>
+        </div>
+      </>) : (<div style={{ overflowY: "auto" }}>
+        <div style={{ textAlign: "center", marginBottom: 8 }}><Ring value={level} size={148} stroke={13} color={accent} track={t.line}><div><div style={{ fontSize: 42, fontWeight: 750, color: t.ink, lineHeight: 1 }}>{level}</div><div style={{ fontSize: 11.5, color: accent, fontWeight: 700 }}>{statusWord(hKey, level).toUpperCase()}</div></div></Ring></div>
+        <div style={{ textAlign: "center", fontSize: 19, fontWeight: 750, color: t.ink, marginTop: 4 }}>Your {h.name.toLowerCase()} {off ? `shows signs of being ${OFFWORD[hKey]}` : "looks balanced"}</div>
+        <p style={{ textAlign: "center", fontSize: 14.5, color: t.sub, lineHeight: 1.55, margin: "8px 6px 18px" }}>You said yes to {acc.current.c} of {total}. {off ? h.fact : h.role}</p>
+        <div style={{ fontSize: 12.5, fontWeight: 650, letterSpacing: ".06em", textTransform: "uppercase", color: t.sub, marginBottom: 8 }}>What actually moves it</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>{h.levers.map((l) => <span key={l.t} style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 14px", borderRadius: 14, background: t.card, border: `1px solid ${t.line}`, fontSize: 13.5, fontWeight: 600, color: t.ink }}><l.Icon size={16} color={accent} />{l.t}</span>)}</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 16 }}><Info size={15} color={t.faint} style={{ flexShrink: 0, marginTop: 1 }} /><p style={{ margin: 0, fontSize: 12, color: t.faint, lineHeight: 1.5 }}>A symptom estimate to guide you — educational, not a diagnosis. For real levels, a blood test is the only way to know.</p></div>
+        <button onClick={() => { onSave(hKey, level); onClose(); }} style={{ width: "100%", padding: 15, borderRadius: 15, border: "none", background: t.ink, color: t.bg, fontFamily: FONT, fontSize: 15.5, fontWeight: 700, cursor: "pointer" }}>Save to my hormones</button>
+        <button onClick={() => onShare({ label: h.name, score: level, status: statusWord(hKey, level), color: h.cd })} style={{ width: "100%", padding: 13, marginTop: 8, borderRadius: 15, border: `1.5px solid ${accent}`, background: dark ? h.softD : h.soft, color: accent, fontFamily: FONT, fontSize: 14.5, fontWeight: 700, cursor: "pointer" }}>Share this result</button>
+        <button onClick={() => { if (premium) reset(); else onPaywall(); }} style={{ width: "100%", padding: 12, marginTop: 8, borderRadius: 15, border: "none", background: "transparent", color: t.sub, fontFamily: FONT, fontSize: 14.5, fontWeight: 600, cursor: "pointer" }}>Scan again {premium ? "" : "\u00b7 Premium"}</button>
+      </div>)}
+    </div>
+  </div>);
+}
+
+function ResultsSheet({ t, dark, profile, onClose, goCoach, onConnect }) {
+  const male = profile?.sex === "Male";
+  const MARKERS = [
+    { k: "cortisol", name: "Cortisol (morning)", unit: "\u00B5g/dL", low: 6, high: 23 },
+    { k: "testosterone", name: "Testosterone", unit: "ng/dL", low: male ? 300 : 15, high: male ? 900 : 70 },
+    { k: "estradiol", name: "Estradiol", unit: "pg/mL", low: 30, high: 400, note: "varies across your cycle" },
+    { k: "tsh", name: "TSH (thyroid)", unit: "mIU/L", low: 0.4, high: 4 },
+    { k: "vitd", name: "Vitamin D", unit: "ng/mL", low: 30, high: 50 },
+    { k: "ferritin", name: "Ferritin (iron)", unit: "ng/mL", low: 30, high: 200 },
+  ];
+  const [vals, setVals] = useState({});
+  const band = (v, low, high) => { const n = parseFloat(v); if (isNaN(n) || v === "") return null; if (n < low) return ["Below range", "#6E8FC9", dark ? "#182430" : "#E9F0F8"]; if (n > high) return ["Above range", "#D98A5A", dark ? "#2A2016" : "#FBEDE2"]; return ["In range", t.sage, t.sageSoft]; };
+  const entered = Object.values(vals).filter((v) => v !== "" && v != null).length;
+  return (<div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "flex-end", zIndex: 60, animation: "fade .25s ease" }}>
+    <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxHeight: "90%", overflowY: "auto", background: t.bg, borderRadius: "26px 26px 0 0", padding: "16px 22px 30px", animation: "slideUp .3s cubic-bezier(.22,1,.36,1)" }}>
+      <div style={{ width: 38, height: 5, borderRadius: 3, background: t.line, margin: "0 auto 16px" }} />
+      <div style={{ width: 52, height: 52, borderRadius: 16, background: t.sageSoft, display: "grid", placeItems: "center", margin: "0 auto 12px" }}><FlaskConical size={25} color={t.sage} /></div>
+      <div style={{ textAlign: "center", fontSize: 20, fontWeight: 750, color: t.ink }}>Already had a blood test?</div>
+      <div style={{ textAlign: "center", fontSize: 14, color: t.sub, margin: "6px 10px 18px", lineHeight: 1.5 }}>Most people never need this — SOMA estimates your hormones on its own. But if you've had bloodwork, add it here for extra precision.</div>
+
+      <button onClick={() => { onClose(); onConnect(); }} style={{ width: "100%", padding: "13px", borderRadius: 14, border: `1.5px solid ${t.line}`, background: t.card, color: t.ink, fontFamily: FONT, fontSize: 14.5, fontWeight: 650, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}><Heart size={17} color={t.sage} /> Import from Apple Health</button>
+      <div style={{ textAlign: "center", fontSize: 12.5, color: t.faint, margin: "4px 0 16px" }}>or enter them manually</div>
+
+      <div style={{ display: "grid", gap: 10 }}>
+        {MARKERS.map((m) => { const b = band(vals[m.k], m.low, m.high); return (
+          <div key={m.k} style={{ background: t.card, border: `1px solid ${t.line}`, borderRadius: 15, padding: "12px 14px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ flex: 1 }}><div style={{ fontSize: 14.5, fontWeight: 650, color: t.ink }}>{m.name}</div><div style={{ fontSize: 12, color: t.sub }}>Typical {m.low}\u2013{m.high} {m.unit}{m.note ? ` \u00B7 ${m.note}` : ""}</div></div>
+              <input inputMode="decimal" value={vals[m.k] || ""} onChange={(e) => setVals((s) => ({ ...s, [m.k]: e.target.value.replace(/[^0-9.]/g, "") }))} placeholder="\u2014" style={{ width: 72, textAlign: "center", fontFamily: FONT, fontSize: 15, padding: "9px 8px", borderRadius: 11, border: `1.5px solid ${t.line}`, background: t.card2, color: t.ink, outline: "none" }} />
+            </div>
+            {b && <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 9, padding: "5px 11px", borderRadius: 20, background: b[2], color: b[1], fontSize: 12.5, fontWeight: 650 }}><span style={{ width: 7, height: 7, borderRadius: 7, background: b[1] }} />{b[0]}</div>}
+          </div>); })}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-start", margin: "16px 2px 18px" }}><Info size={15} color={t.faint} style={{ flexShrink: 0, marginTop: 1 }} /><p style={{ margin: 0, fontSize: 12, color: t.faint, lineHeight: 1.5 }}>Typical adult ranges — they vary by lab, age and sex. This is educational, not a diagnosis. Your doctor's interpretation is what counts.</p></div>
+
+      <button onClick={() => { onClose(); goCoach(); }} disabled={entered === 0} style={{ width: "100%", padding: 15, borderRadius: 15, border: "none", background: entered ? t.ink : t.line, color: entered ? t.bg : t.faint, fontFamily: FONT, fontSize: 15.5, fontWeight: 700, cursor: entered ? "pointer" : "default" }}>{entered ? "Save & discuss with coach" : "Enter a value to continue"}</button>
+    </div>
+  </div>);
+}
+
+/* ============================== APP ============================== */
+// Demo presets so the app opens already "logged in" — no onboarding.
+const DEMO_F = { name: "Lucia", sex: "Female", age: 28, activity: "Moderate", cycleLength: 28, daysSince: 8, regular: "Regular", goals: ["Lower my cortisol", "Clearer skin", "Better sleep"], stress: 6, sleep: "Fair", checks: { cortisol: 42, insulin: 58, dopamine: 64, melatonin: 80 } };
+const DEMO_M = { name: "Leo", sex: "Male", age: 31, activity: "Very active", goals: ["Support testosterone", "Steadier energy", "Better sleep"], stress: 5, sleep: "Good", checks: { testosterone: 55, cortisol: 50, insulin: 70, melatonin: 74 } };
+
+/* ============================== PERSISTENCE ============================== */
+// Real storage: profile, scans, streak and history survive reloads.
+// Dual persistence: claude.ai artifact storage when available, else browser storage on the deployed site.
+const hasArtifactStore = typeof window !== "undefined" && typeof window.storage !== "undefined";
+const store = {
+  async get(k) {
+    if (hasArtifactStore) { try { const r = await window.storage.get("soma:" + k); return r ? JSON.parse(r.value) : null; } catch (e) { return null; } }
+    try { const r = localStorage.getItem("soma:" + k); return r ? JSON.parse(r) : null; } catch (e) { return null; }
+  },
+  async set(k, v) {
+    if (hasArtifactStore) { try { await window.storage.set("soma:" + k, JSON.stringify(v)); } catch (e) {} return; }
+    try { localStorage.setItem("soma:" + k, JSON.stringify(v)); } catch (e) {}
+  },
+};
+
+// One shareable number: average balance across scanned hormones.
+function hormoneScore(profile) {
+  const list = hormoneList(profile).filter((h) => h.checked && typeof h.level === "number");
+  if (!list.length) return null;
+  return Math.round(list.reduce((a, h) => a + h.level, 0) / list.length);
+}
+
+/* ============================== SHARE CARD ============================== */
+// Draws a story-format result card on canvas — a real downloadable image.
+function ShareSheet({ t, dark, data, onClose }) {
+  const cv = useRef(null); const [copied, setCopied] = useState(false);
+  const W = 720, H = 1280;
+  useEffect(() => {
+    const c = cv.current; if (!c) return; const x = c.getContext("2d");
+    x.fillStyle = "#101113"; x.fillRect(0, 0, W, H);
+    const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, "rgba(95,158,130,.16)"); g.addColorStop(1, "rgba(94,138,192,.14)");
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+    // brand ring top
+    x.strokeStyle = "#8FC5AC"; x.lineWidth = 10; x.lineCap = "round";
+    x.beginPath(); x.arc(W/2, 150, 40, -Math.PI*0.65, Math.PI*1.05); x.stroke();
+    x.fillStyle = "#8FC5AC"; x.beginPath(); x.arc(W/2+30, 118, 9, 0, Math.PI*2); x.fill();
+    x.fillStyle = "#F2F2F4"; x.font = "700 34px -apple-system, sans-serif"; x.textAlign = "center";
+    x.fillText("SOMA", W/2, 238);
+    // label
+    x.fillStyle = "#9B9CA2"; x.font = "650 30px -apple-system, sans-serif";
+    x.fillText(("MY " + data.label + " SCORE").toUpperCase(), W/2, 356);
+    // big ring
+    const cy = 620, R = 190;
+    x.strokeStyle = "rgba(255,255,255,.09)"; x.lineWidth = 30;
+    x.beginPath(); x.arc(W/2, cy, R, 0, Math.PI*2); x.stroke();
+    x.strokeStyle = data.color; x.lineCap = "round";
+    x.beginPath(); x.arc(W/2, cy, R, -Math.PI/2, -Math.PI/2 + (data.score/100)*Math.PI*2); x.stroke();
+    x.fillStyle = "#F2F2F4"; x.font = "800 150px -apple-system, sans-serif";
+    x.fillText(String(data.score), W/2, cy + 50);
+    x.fillStyle = data.color; x.font = "700 34px -apple-system, sans-serif";
+    x.fillText(data.status.toUpperCase(), W/2, cy + 118);
+    // hook line
+    x.fillStyle = "#F2F2F4"; x.font = "700 40px -apple-system, sans-serif";
+    x.fillText("What's yours?", W/2, 960);
+    x.fillStyle = "#9B9CA2"; x.font = "550 28px -apple-system, sans-serif";
+    x.fillText("Free 60-second scan on SOMA", W/2, 1012);
+    x.fillStyle = "#63656B"; x.font = "500 20px -apple-system, sans-serif";
+    x.fillText("Symptom estimate \u00b7 educational, not a diagnosis", W/2, 1200);
+  }, [data]);
+  const download = () => { const a = document.createElement("a"); a.download = "soma-" + data.label.toLowerCase().replace(/\s/g, "-") + "-score.png"; a.href = cv.current.toDataURL("image/png"); a.click(); };
+  const caption = "My " + data.label.toLowerCase() + " score is " + data.score + "/100 \uD83D\uDE33 scanned it free in 60 sec on SOMA \u2014 what's yours?";
+  const copy = async () => { try { await navigator.clipboard.writeText(caption); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch (e) {} };
+  return (<div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", zIndex: 80, animation: "fade .25s ease" }}>
+    <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxHeight: "94%", overflowY: "auto", background: t.bg, borderRadius: "26px 26px 0 0", padding: "14px 22px 26px", animation: "slideUp .3s cubic-bezier(.22,1,.36,1)" }}>
+      <div style={{ width: 38, height: 5, borderRadius: 3, background: t.line, margin: "0 auto 14px" }} />
+      <div style={{ textAlign: "center", fontSize: 19, fontWeight: 750, color: t.ink, marginBottom: 12 }}>Share your result</div>
+      <canvas ref={cv} width={720} height={1280} style={{ width: "62%", display: "block", margin: "0 auto 16px", borderRadius: 18, boxShadow: t.shadowLg }} />
+      <button onClick={download} style={{ width: "100%", padding: 15, borderRadius: 15, border: "none", background: t.ink, color: t.bg, fontFamily: FONT, fontSize: 15.5, fontWeight: 700, cursor: "pointer" }}>Download image</button>
+      <button onClick={copy} style={{ width: "100%", padding: 13, marginTop: 8, borderRadius: 15, border: `1.5px solid ${t.line}`, background: t.card, color: t.ink, fontFamily: FONT, fontSize: 14.5, fontWeight: 650, cursor: "pointer" }}>{copied ? "\u2713 Caption copied" : "Copy caption"}</button>
+    </div>
+  </div>);
+}
+
+/* ============================== PAYWALL ============================== */
+function PaywallSheet({ t, dark, onClose, onUpgrade }) {
+  return (<div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", zIndex: 80, animation: "fade .25s ease" }}>
+    <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", background: t.bg, borderRadius: "26px 26px 0 0", padding: "16px 22px 28px", animation: "slideUp .3s cubic-bezier(.22,1,.36,1)" }}>
+      <div style={{ width: 38, height: 5, borderRadius: 3, background: t.line, margin: "0 auto 16px" }} />
+      <div style={{ width: 54, height: 54, borderRadius: 17, background: `linear-gradient(150deg, ${t.sage}, ${t.blue})`, display: "grid", placeItems: "center", margin: "0 auto 12px" }}><Crown size={26} color="#fff" /></div>
+      <div style={{ textAlign: "center", fontSize: 21, fontWeight: 800, color: t.ink }}>See how you change</div>
+      <div style={{ textAlign: "center", fontSize: 14, color: t.sub, margin: "6px 16px 18px", lineHeight: 1.5 }}>One scan tells you today. Premium shows whether you're actually getting better.</div>
+      <div style={{ display: "grid", gap: 9, marginBottom: 18 }}>{["Re-scan any hormone, anytime", "Your score tracked over time", "Your personal hormone plan", "Unlimited AI coach + Apple Health sync"].map((f) => (
+        <div key={f} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14.5, color: t.ink, fontWeight: 550 }}><Check size={17} color={t.sage} strokeWidth={2.5} /> {f}</div>))}</div>
+      <button onClick={onUpgrade} style={{ width: "100%", padding: 15, borderRadius: 15, border: "none", background: t.ink, color: t.bg, fontFamily: FONT, fontSize: 15.5, fontWeight: 700, cursor: "pointer" }}>Go Premium · $12/mo</button>
+      <button onClick={onClose} style={{ width: "100%", padding: 12, marginTop: 6, borderRadius: 15, border: "none", background: "transparent", color: t.sub, fontFamily: FONT, fontSize: 14.5, fontWeight: 600, cursor: "pointer" }}>Not now</button>
+    </div>
+  </div>);
+}
+
+export default function App() {
+  const [dark, setDark] = useState(false);
+  const [onboarded, setOnboarded] = useState(false);
+  const [profile, setProfile] = useState(null);
+  const [tab, setTab] = useState("home");
+  const [focus, setFocus] = useState([]);
+  const [connected, setConnected] = useState(false);
+  const [showConnect, setShowConnect] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [activeHormone, setActiveHormone] = useState(null);
+  const [activeCheck, setActiveCheck] = useState(null);
+  const [premium, setPremium] = useState(false);
+  const [streak, setStreak] = useState(1);
+  const [history, setHistory] = useState([]);
+  const [shareData, setShareData] = useState(null);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [activeArticle, setActiveArticle] = useState(null);
+  const booted = useRef(false);
+
+  // Boot: restore saved state, then advance the streak once per day.
+  useEffect(() => { (async () => {
+    const saved = await store.get("state");
+    if (saved?.profile) { setProfile(saved.profile); setOnboarded(true); if (saved.premium) setPremium(true); if (saved.history) setHistory(saved.history); }
+    const today = new Date().toISOString().slice(0, 10);
+    const y = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+    let st = saved?.streak || { last: today, n: 1 };
+    if (st.last !== today) st = { last: today, n: st.last === y ? st.n + 1 : 1 };
+    setStreak(st.n);
+    await store.set("state", { ...(saved || {}), streak: st });
+    booted.current = true;
+  })(); }, []);
+
+  // Persist on change (after boot), and log today's score into history.
+  useEffect(() => { if (!booted.current || !profile) return; (async () => {
+    const sc = hormoneScore(profile);
+    let h = history;
+    if (sc != null) { const d = new Date().toISOString().slice(5, 10); h = [...history.filter((x) => x.d !== d), { d, v: sc }].slice(-14); if (h.length !== history.length || h[h.length - 1]?.v !== sc) setHistory(h); }
+    const saved = (await store.get("state")) || {};
+    await store.set("state", { ...saved, profile, premium, history: h });
+  })(); }, [profile, premium]);
+  const t = useMemo(() => makeTheme(dark), [dark]);
+
+  useEffect(() => { if (profile) { const hasCycle = profile.sex === "Female"; const ci = cycleInfo(profile);
+    const f = hasCycle
+      ? { menstrual: [{ Icon: Wind, t: "Gentle movement only", n: "Skip max effort this week" }, { Icon: Utensils, t: "Iron-rich food", n: "Replenish what you lose" }, { Icon: MoonStar, t: "Earlier bedtime", n: "Cortisol runs sensitive now" }], follicular: [{ Icon: Dumbbell, t: "Train hard today", n: "Rising estrogen backs you up" }, { Icon: Sunrise, t: "Morning light", n: "Anchors cortisol + mood" }, { Icon: Utensils, t: "Protein at breakfast", n: "Steadies blood sugar" }], ovulation: [{ Icon: Zap, t: "Peak-effort workout", n: "Your strongest days" }, { Icon: Droplet, t: "Stay hydrated", n: "Supports the higher output" }, { Icon: Leaf, t: "Fibre with meals", n: "Helps clear estrogen" }], luteal: [{ Icon: Wind, t: "Steady movement, not max", n: "Zone 2, pilates, walks" }, { Icon: Utensils, t: "Magnesium + complex carbs", n: "Eases cramps & cravings" }, { Icon: MoonStar, t: "Protect your sleep", n: "Wind down earlier" }] }[ci.key]
+      : [{ Icon: Sunrise, t: "Morning light, 10 min", n: "Sets cortisol + testosterone" }, { Icon: Dumbbell, t: "Strength training", n: "Supports testosterone" }, { Icon: Utensils, t: "Protein at breakfast", n: "Steadies energy + insulin" }, { Icon: MoonStar, t: "Screens off by 10:30", n: "Protects melatonin" }];
+    setFocus(f.map((x, i) => ({ ...x, done: i === 0 }))); } }, [profile]);
+
+  const now = new Date(); const time = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: false });
+  const TABS = [{ id: "home", label: "Home", Icon: Home }, { id: "coach", label: "Coach", Icon: MessageCircle }, { id: "hormones", label: "Hormones", Icon: Activity }, { id: "learn", label: "Learn", Icon: BookOpen }, { id: "profile", label: "Profile", Icon: User }];
+  const shell = { width: "100%", maxWidth: 428, height: "100%", maxHeight: 924, background: t.bg, borderRadius: 44, overflow: "hidden", position: "relative", display: "flex", flexDirection: "column", boxShadow: t.shadowLg, border: `1px solid ${t.line}`, fontFamily: FONT };
+  const screen = () => {
+    switch (tab) {
+      case "home": return <HomeScreen t={t} dark={dark} profile={profile} focus={focus} setFocus={setFocus} goCoach={() => setTab("coach")} goHormones={() => setTab("hormones")} connected={connected} onConnect={() => setShowConnect(true)} openHormone={setActiveHormone} openCheck={setActiveCheck} streak={streak} onShare={setShareData} premium={premium} onPaywall={() => setShowPaywall(true)} history={history} />;
+      case "coach": return <CoachScreen t={t} dark={dark} profile={profile} />;
+      case "hormones": return <HormonesScreen t={t} dark={dark} profile={profile} openCheck={setActiveCheck} onAddResults={() => setShowResults(true)} />;
+      case "learn": return <LearnScreen t={t} dark={dark} openArticle={setActiveArticle} />;
+      case "profile": return <ProfileScreen t={t} dark={dark} setDark={setDark} profile={profile} connected={connected} onConnect={() => setShowConnect(true)} premium={premium} onPaywall={() => setShowPaywall(true)} />;
+      default: return null;
+    }
+  };
+  return (<div style={{ height: "100vh", width: "100%", background: dark ? "#050506" : "#E6E7E3", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 14, boxSizing: "border-box", fontFamily: FONT }}>
+    <style>{`@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.08);opacity:.85}}@keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-5px);opacity:1}}@keyframes slideUp{from{transform:translateY(100%)}to{transform:none}}*::-webkit-scrollbar{display:none}input::placeholder{color:${t.faint}}`}</style>
+    <div style={shell}>
+      {activeHormone && <HormoneSheet t={t} dark={dark} h={activeHormone} onClose={() => setActiveHormone(null)} goCoach={() => setTab("coach")} onCheck={setActiveCheck} />}
+      {activeCheck && <CheckSheet t={t} dark={dark} hKey={activeCheck} onClose={() => setActiveCheck(null)} goCoach={() => setTab("coach")} onSave={(k, level) => setProfile((p) => ({ ...p, checks: { ...(p.checks || {}), [k]: level } }))} onShare={setShareData} premium={premium} onPaywall={() => { setActiveCheck(null); setShowPaywall(true); }} />}
+      {activeArticle && <ArticleSheet t={t} dark={dark} article={activeArticle} onClose={() => setActiveArticle(null)} goCoach={() => setTab("coach")} />}
+      {shareData && <ShareSheet t={t} dark={dark} data={shareData} onClose={() => setShareData(null)} />}
+      {showPaywall && <PaywallSheet t={t} dark={dark} onClose={() => setShowPaywall(false)} onUpgrade={() => { setPremium(true); setShowPaywall(false); }} />}
+      {showConnect && <ConnectSheet t={t} dark={dark} onClose={() => setShowConnect(false)} onConnect={() => { setConnected(true); setShowConnect(false); }} />}
+      {showResults && <ResultsSheet t={t} dark={dark} profile={profile} onClose={() => setShowResults(false)} goCoach={() => setTab("coach")} onConnect={() => setShowConnect(true)} />}
+      {!onboarded ? <Onboarding t={t} dark={dark} onDone={(a) => { setProfile(a); setOnboarded(true); }} /> : (<>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 26px 4px", flexShrink: 0 }}><span style={{ fontSize: 14, fontWeight: 650, color: t.ink }}>{time}</span><div style={{ display: "flex", gap: 6, alignItems: "center", color: t.ink }}><div style={{ display: "flex", gap: 2, alignItems: "flex-end", height: 11 }}>{[4, 7, 9, 11].map((h) => <span key={h} style={{ width: 3, height: h, borderRadius: 1, background: t.ink }} />)}</div><Battery size={20} strokeWidth={2} /></div></div>
+        <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>{screen()}</div>
+        <div style={{ flexShrink: 0, display: "flex", justifyContent: "space-around", padding: "8px 8px", borderTop: `1px solid ${t.line}`, background: dark ? "rgba(17,19,22,.85)" : "rgba(255,255,255,.85)", backdropFilter: "blur(20px)" }}>{TABS.map(({ id, label, Icon }) => { const active = tab === id; return <button key={id} onClick={() => setTab(id)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "6px 12px", flex: 1 }}><Icon size={23} color={active ? t.sage : t.faint} strokeWidth={active ? 2.4 : 2} fill={active ? t.sage : "none"} fillOpacity={active ? 0.14 : 0} /><span style={{ fontSize: 10.5, fontWeight: active ? 700 : 550, color: active ? t.sage : t.faint }}>{label}</span></button>; })}</div>
+      </>)}
+    </div>
+  </div>);
+}
