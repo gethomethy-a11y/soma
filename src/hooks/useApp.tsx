@@ -50,9 +50,15 @@ type AppValue = {
 
 const AppContext = createContext<AppValue | null>(null);
 
+/** The phone's own light/dark setting, read once at startup. */
+function prefersDark(): boolean {
+  return typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches === true;
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
-  const [dark, setDark] = useState(false);
+  // Open in whatever mode the phone is already in; the Profile toggle overrides it.
+  const [dark, setDark] = useState(prefersDark);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [scans, setScans] = useState<Partial<Record<HormoneKey, number>>>({});
   const [history, setHistory] = useState<HistoryPoint[]>([]);
