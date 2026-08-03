@@ -1,4 +1,5 @@
 import type { HistoryPoint, HormoneKey, Profile, Scan } from "../types";
+import { buildRow, schema, type ProfileColumns } from "./columns";
 import { ensureSession, supabase } from "./supabase";
 
 /**
@@ -8,25 +9,9 @@ import { ensureSession, supabase } from "./supabase";
  * storage is always written too, so the app opens instantly on reload and keeps
  * working offline or before keys are set.
  *
- * If your Supabase column names differ from these, change them here — this is
- * the only place in the app that knows about them.
+ * Column names are resolved at runtime by src/lib/columns.ts — the app reads
+ * the database's own schema rather than assuming how things are spelled.
  */
-const PROFILE_COLUMNS = {
-  userId: "user_id",
-  name: "name",
-  sex: "sex",
-  age: "age",
-  cycleLength: "cycle_length",
-  daysSince: "cycle_days_since",
-  regular: "cycle_regular",
-  activity: "activity",
-  goals: "goals",
-  sleep: "sleep_quality",
-  stress: "stress",
-  diet: "diet",
-  premium: "premium",
-  streak: "streak",
-} as const;
 
 const LOCAL_KEY = "soma:state";
 
@@ -67,7 +52,7 @@ function writeLocal(state: Partial<AppState>) {
   }
 }
 
-/** Wipe local state. Used by "start over" in Profile. */
+/** Wipe local state. */
 export function clearLocal() {
   try {
     localStorage.removeItem(LOCAL_KEY);
@@ -113,37 +98,41 @@ export async function loadState(): Promise<AppState> {
     return state;
   }
 
+  const { profiles, scans: scanCols, daily } = await schema();
+  const idColumn = profiles.userId ?? "user_id";
+
   try {
     const [profileRes, scansRes, dailyRes] = await Promise.all([
-      supabase.from("soma_profiles").select("*").eq(PROFILE_COLUMNS.userId, userId).maybeSingle(),
-      supabase
-        .from("soma_scans")
-        .select("hormone, score, answers, created_at")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false }),
-      supabase.from("soma_daily_scores").select("day, score").eq("user_id", userId).order("day", { ascending: true }),
+      supabase.from("soma_profiles").select("*").eq(idColumn, userId).maybeSingle(),
+      supabase.from("soma_scans").select("*").eq("user_id", userId).order(scanCols.createdAt ?? "created_at", {
+        ascending: false,
+      }),
+      supabase.from("soma_daily_scores").select("*").eq("user_id", userId).order(daily.day ?? "day", {
+        ascending: true,
+      }),
     ]);
 
     const row = profileRes.data as Record<string, unknown> | null;
     if (row) {
-      state.profile = rowToProfile(row);
-      state.premium = Boolean(row[PROFILE_COLUMNS.premium]);
-      const remoteStreak = Number(row[PROFILE_COLUMNS.streak] ?? 0);
+      state.profile = rowToProfile(row, profiles);
+      if (profiles.premium) state.premium = Boolean(row[profiles.premium]);
+      const remoteStreak = profiles.streak ? Number(row[profiles.streak] ?? 0) : 0;
       if (remoteStreak > state.streak.n) state.streak = { last: today(), n: remoteStreak };
     }
 
     // Most recent scan per hormone wins.
-    if (scansRes.data) {
+    if (scansRes.data && scanCols.hormone && scanCols.score) {
       const latest: Partial<Record<HormoneKey, number>> = {};
-      for (const scan of scansRes.data as { hormone: HormoneKey; score: number }[]) {
-        if (latest[scan.hormone] === undefined) latest[scan.hormone] = scan.score;
+      for (const scan of scansRes.data as Record<string, unknown>[]) {
+        const key = scan[scanCols.hormone] as HormoneKey;
+        if (key && latest[key] === undefined) latest[key] = Number(scan[scanCols.score]);
       }
       if (Object.keys(latest).length > 0) state.scans = latest;
     }
 
-    if (dailyRes.data && dailyRes.data.length > 0) {
-      state.history = (dailyRes.data as { day: string; score: number }[])
-        .map((d) => ({ d: d.day.slice(5, 10), v: d.score }))
+    if (dailyRes.data && dailyRes.data.length > 0 && daily.day && daily.score) {
+      state.history = (dailyRes.data as Record<string, unknown>[])
+        .map((d) => ({ d: String(d[daily.day!]).slice(5, 10), v: Number(d[daily.score!]) }))
         .slice(-14);
     }
 
@@ -163,24 +152,30 @@ export async function saveProfile(profile: Profile, premium: boolean, streak: St
   const userId = await ensureSession();
   if (!supabase || !userId) return;
 
-  const row: Record<string, unknown> = {
-    [PROFILE_COLUMNS.userId]: userId,
-    [PROFILE_COLUMNS.name]: profile.name,
-    [PROFILE_COLUMNS.sex]: profile.sex,
-    [PROFILE_COLUMNS.age]: profile.age,
-    [PROFILE_COLUMNS.cycleLength]: profile.cycleLength,
-    [PROFILE_COLUMNS.daysSince]: profile.daysSince,
-    [PROFILE_COLUMNS.regular]: profile.regular,
-    [PROFILE_COLUMNS.activity]: profile.activity,
-    [PROFILE_COLUMNS.goals]: profile.goals,
-    [PROFILE_COLUMNS.sleep]: profile.sleep,
-    [PROFILE_COLUMNS.stress]: profile.stress,
-    [PROFILE_COLUMNS.diet]: profile.diet,
-    [PROFILE_COLUMNS.streak]: streak.n,
-  };
+  const { profiles } = await schema();
+
+  // Premium is deliberately not written from the client — only the Stripe
+  // webhook may set it, so a user can't grant it to themselves.
+  const row = buildRow(profiles, {
+    userId,
+    name: profile.name,
+    sex: profile.sex,
+    age: profile.age,
+    cycleLength: profile.cycleLength,
+    daysSince: profile.daysSince,
+    regular: profile.regular,
+    activity: profile.activity,
+    goals: profile.goals,
+    sleep: profile.sleep,
+    stress: profile.stress,
+    diet: profile.diet,
+    streak: streak.n,
+  });
 
   try {
-    const { error } = await supabase.from("soma_profiles").upsert(row, { onConflict: PROFILE_COLUMNS.userId });
+    const { error } = await supabase
+      .from("soma_profiles")
+      .upsert(row, { onConflict: profiles.userId ?? "user_id" });
     if (error) console.warn("[soma] Profile save failed.", error.message);
   } catch (err) {
     console.warn("[soma] Profile save failed.", err);
@@ -197,18 +192,24 @@ export async function saveScan(scan: Scan, overallScore: number | null) {
   const userId = await ensureSession();
   if (!supabase || !userId) return;
 
-  try {
-    await supabase.from("soma_scans").insert({
-      user_id: userId,
-      hormone: scan.hormone,
-      score: scan.score,
-      answers: scan.answers,
-    });
+  const { scans: scanCols, daily } = await schema();
 
-    if (overallScore != null) {
+  try {
+    await supabase.from("soma_scans").insert(
+      buildRow(scanCols, {
+        userId,
+        hormone: scan.hormone,
+        score: scan.score,
+        answers: scan.answers,
+      })
+    );
+
+    if (overallScore != null && daily.day && daily.score) {
       await supabase
         .from("soma_daily_scores")
-        .upsert({ user_id: userId, day: today(), score: overallScore }, { onConflict: "user_id,day" });
+        .upsert(buildRow(daily, { userId, day: today(), score: overallScore }), {
+          onConflict: `${daily.userId ?? "user_id"},${daily.day}`,
+        });
     }
   } catch (err) {
     console.warn("[soma] Scan save failed — kept locally.", err);
@@ -221,7 +222,7 @@ function mergeToday(history: HistoryPoint[], score: number): HistoryPoint[] {
   return [...history.filter((p) => p.d !== label), { d: label, v: score }].slice(-14);
 }
 
-/** Cache the premium flag locally. The webhook is what actually sets it in Supabase. */
+/** Cache the premium flag locally. The webhook is what sets it in Supabase. */
 export async function cachePremium(premium: boolean) {
   writeLocal({ premium });
 }
@@ -231,13 +232,16 @@ export async function refreshPremium(): Promise<boolean> {
   const userId = await ensureSession();
   if (!supabase || !userId) return readLocal().premium ?? false;
 
+  const { profiles } = await schema();
+  if (!profiles.premium) return readLocal().premium ?? false;
+
   try {
     const { data } = await supabase
       .from("soma_profiles")
-      .select(PROFILE_COLUMNS.premium)
-      .eq(PROFILE_COLUMNS.userId, userId)
+      .select(profiles.premium)
+      .eq(profiles.userId ?? "user_id", userId)
       .maybeSingle();
-    const premium = Boolean((data as Record<string, unknown> | null)?.[PROFILE_COLUMNS.premium]);
+    const premium = Boolean((data as Record<string, unknown> | null)?.[profiles.premium]);
     writeLocal({ premium });
     return premium;
   } catch {
@@ -245,18 +249,31 @@ export async function refreshPremium(): Promise<boolean> {
   }
 }
 
-function rowToProfile(row: Record<string, unknown>): Profile {
+function rowToProfile(row: Record<string, unknown>, columns: ProfileColumns): Profile {
+  /** Read a column if it exists and has a value, otherwise fall back. */
+  const cell = (column: string | null): unknown => (column ? row[column] : undefined);
+  const text = (column: string | null) => {
+    const value = cell(column);
+    return value == null ? "" : String(value);
+  };
+  const num = (column: string | null, fallback: number) => {
+    const value = Number(cell(column));
+    return Number.isFinite(value) ? value : fallback;
+  };
+
+  const goals = cell(columns.goals);
+
   return {
-    name: String(row[PROFILE_COLUMNS.name] ?? ""),
-    age: Number(row[PROFILE_COLUMNS.age] ?? 29),
-    sex: (row[PROFILE_COLUMNS.sex] as Profile["sex"]) ?? "",
-    daysSince: Number(row[PROFILE_COLUMNS.daysSince] ?? 8),
-    cycleLength: Number(row[PROFILE_COLUMNS.cycleLength] ?? 28),
-    regular: (row[PROFILE_COLUMNS.regular] as Profile["regular"]) ?? "",
-    activity: String(row[PROFILE_COLUMNS.activity] ?? ""),
-    goals: Array.isArray(row[PROFILE_COLUMNS.goals]) ? (row[PROFILE_COLUMNS.goals] as string[]) : [],
-    sleep: String(row[PROFILE_COLUMNS.sleep] ?? ""),
-    stress: Number(row[PROFILE_COLUMNS.stress] ?? 5),
-    diet: String(row[PROFILE_COLUMNS.diet] ?? ""),
+    name: text(columns.name),
+    age: num(columns.age, 29),
+    sex: text(columns.sex) as Profile["sex"],
+    daysSince: num(columns.daysSince, 8),
+    cycleLength: num(columns.cycleLength, 28),
+    regular: text(columns.regular) as Profile["regular"],
+    activity: text(columns.activity),
+    goals: Array.isArray(goals) ? (goals as string[]) : [],
+    sleep: text(columns.sleep),
+    stress: num(columns.stress, 5),
+    diet: text(columns.diet),
   };
 }
